@@ -2,6 +2,11 @@ import ArrowForwardRoundedIcon from "@mui/icons-material/ArrowForwardRounded";
 import MedicalServicesRoundedIcon from "@mui/icons-material/MedicalServicesRounded";
 import UploadFileRoundedIcon from "@mui/icons-material/UploadFileRounded";
 import {
+  Alert,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogTitle,
   Box,
   Button,
   Card,
@@ -10,7 +15,7 @@ import {
   Stack,
   Typography,
 } from "@mui/material";
-import { useNavigate } from "react-router-dom";
+import { useState } from "react";
 import { DEMO_ROLES } from "../../config/roleAccess";
 
 const roleCards = [
@@ -40,6 +45,7 @@ const roleCards = [
 
 const adminAccess = {
   role: DEMO_ROLES.USER_ANALYTICS,
+  title: "Admin",
   buttonLabel: "Admin Login",
   route: "/dashboard",
 };
@@ -61,9 +67,27 @@ const supportDesk = {
     "For prompt resolution, kindly include the Case ID, a clear screenshot, and the exact error message in your request.",
 };
 
-function LandingPage({ onRoleSelect }) {
-  const navigate = useNavigate();
+const GATEKEEPER_BASE_URL = "http://localhost:8000";
+
+function getGatekeeperAuthUrl(path, routePath) {
+  const redirectUrl = `${window.location.origin}${routePath}`;
+  return `${GATEKEEPER_BASE_URL}${path}?redirect=${encodeURIComponent(redirectUrl)}`;
+}
+
+function LandingPage({ authError = "" }) {
+  const [authDialogOpen, setAuthDialogOpen] = useState(false);
+  const [selectedAccess, setSelectedAccess] = useState(null);
   const announcementText = announcements.join(" \u2022 ");
+
+  const openAuthDialog = (accessItem) => {
+    setSelectedAccess(accessItem);
+    setAuthDialogOpen(true);
+  };
+
+  const handleGatekeeperRedirect = (authPath) => {
+    if (!selectedAccess) return;
+    window.location.href = getGatekeeperAuthUrl(authPath, selectedAccess.route);
+  };
 
   return (
     <Box
@@ -176,10 +200,7 @@ function LandingPage({ onRoleSelect }) {
           <Button
             size="small"
             variant="text"
-            onClick={() => {
-              onRoleSelect?.(adminAccess.role);
-              navigate(adminAccess.route);
-            }}
+            onClick={() => openAuthDialog(adminAccess)}
             sx={{ color: "text.secondary" }}
           >
             {adminAccess.buttonLabel}
@@ -235,10 +256,7 @@ function LandingPage({ onRoleSelect }) {
                     <Button
                       variant="contained"
                       endIcon={<ArrowForwardRoundedIcon />}
-                      onClick={() => {
-                        onRoleSelect?.(role.role);
-                        navigate(role.route);
-                      }}
+                      onClick={() => openAuthDialog(role)}
                       sx={{
                         mt: "auto",
                         bgcolor: role.accentColor,
@@ -286,7 +304,32 @@ function LandingPage({ onRoleSelect }) {
             </Typography>
           </CardContent>
         </Card>
+
+        {authError && <Alert severity="warning">{authError}</Alert>}
       </Stack>
+
+      <Dialog open={authDialogOpen} onClose={() => setAuthDialogOpen(false)} fullWidth maxWidth="xs">
+        <DialogTitle>{selectedAccess?.title || "User Access"}</DialogTitle>
+        <DialogContent>
+          <Stack spacing={1.25}>
+            <Typography variant="body2" color="text.secondary">
+              New user? Choose <strong>Sign Up</strong>. Existing user? Choose <strong>Sign In</strong>.
+            </Typography>
+            <Alert severity="info">
+              After login, you will be redirected to {selectedAccess?.buttonLabel || "selected access page"}.
+            </Alert>
+          </Stack>
+        </DialogContent>
+        <DialogActions sx={{ px: 2.5, pb: 2 }}>
+          <Button onClick={() => setAuthDialogOpen(false)}>Cancel</Button>
+          <Button variant="outlined" onClick={() => handleGatekeeperRedirect("/signup")}>
+            Sign Up
+          </Button>
+          <Button variant="contained" onClick={() => handleGatekeeperRedirect("/signin")}>
+            Sign In
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 }

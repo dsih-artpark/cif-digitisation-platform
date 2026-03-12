@@ -1,5 +1,6 @@
 import MenuRoundedIcon from "@mui/icons-material/MenuRounded";
 import CloseRoundedIcon from "@mui/icons-material/CloseRounded";
+import LogoutRoundedIcon from "@mui/icons-material/LogoutRounded";
 import {
   AppBar,
   Box,
@@ -20,7 +21,7 @@ import { useState } from "react";
 import { NavLink, useLocation } from "react-router-dom";
 import { ROLE_ACCESS } from "../../config/roleAccess";
 
-function Navbar({ activeRole, onRoleReset }) {
+function Navbar({ activeRole, onSignOut }) {
   const location = useLocation();
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down("md"));
@@ -91,16 +92,15 @@ function Navbar({ activeRole, onRoleReset }) {
                 <Divider />
                 <Box sx={{ p: 1.5 }}>
                   <Button
-                    component={NavLink}
-                    to="/"
+                    startIcon={<LogoutRoundedIcon />}
                     variant="outlined"
                     fullWidth
                     onClick={() => {
-                      onRoleReset();
+                      onSignOut();
                       setDrawerOpen(false);
                     }}
                   >
-                    Change Role
+                    Sign Out
                   </Button>
                 </Box>
               </Box>
@@ -125,18 +125,17 @@ function Navbar({ activeRole, onRoleReset }) {
               </Button>
             ))}
             <Button
-              component={NavLink}
-              to="/"
+              startIcon={<LogoutRoundedIcon />}
               color="inherit"
               variant="outlined"
-              onClick={onRoleReset}
+              onClick={onSignOut}
               sx={{
                 borderColor: "rgba(255,255,255,0.4)",
                 color: "white",
                 "&:hover": { bgcolor: "rgba(255,255,255,0.12)" },
               }}
             >
-              Change Role
+              Sign Out
             </Button>
           </Box>
         )}

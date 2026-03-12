@@ -4,6 +4,12 @@ export const DEMO_ROLES = {
   MEDICAL_OFFICER: "medical_officer",
 };
 
+export const GATEKEEPER_ROLE_MAP = {
+  admin: DEMO_ROLES.USER_ANALYTICS,
+  front_line_worker: DEMO_ROLES.FRONT_LINE_WORKER,
+  medical_officer: DEMO_ROLES.MEDICAL_OFFICER,
+};
+
 export const ROLE_ACCESS = {
   [DEMO_ROLES.USER_ANALYTICS]: {
     label: "User Analytics",
@@ -40,4 +46,16 @@ export function getRoleHome(role) {
 export function isRouteAllowed(role, path) {
   if (!role || !path) return false;
   return ROLE_ACCESS[role]?.allowedRoutes.includes(path) ?? false;
+}
+
+export function mapGatekeeperRoleToAppRole(gatekeeperRole, isAdmin = false) {
+  if (gatekeeperRole && GATEKEEPER_ROLE_MAP[gatekeeperRole]) {
+    return GATEKEEPER_ROLE_MAP[gatekeeperRole];
+  }
+
+  if (isAdmin) {
+    return DEMO_ROLES.USER_ANALYTICS;
+  }
+
+  return "";
 }
