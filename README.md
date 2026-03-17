@@ -52,29 +52,46 @@ Upload -> Process -> Review -> Monitor -> Improve data quality in the next uploa
 
 ## Download / Clone
 
-### Option A: Download ZIP (no git required)
+### Option A: Download ZIP (GitHub)
 
-1. Open the repository in GitHub.
-2. Click **Code → Download ZIP**.
+1. Open the repository on GitHub.
+2. Click **Code** → **Download ZIP**.
 3. Extract the ZIP to a folder on your computer.
 
-### Option B: Clone with git
+### Option B: Clone with Git
 
 ```bash
 git clone https://github.com/nithins-artpark/cif-digitisation-platform.git
 cd cif-digitisation-platform
 ```
 
-## Run Locally (Windows / PowerShell)
+## Prerequisites
 
-### Prerequisites
+- **Node.js**: 18+ recommended (for the Vite + React frontend)
+- **Python**: 3.10+ recommended (for the FastAPI backend)
 
-- **Node.js**: v18+ recommended
-- **Python**: 3.10+ recommended
+## Environment Variables
+
+### Backend (required for LLM extraction)
+
+Set **`OPENROUTER_API_KEY`** for the backend before running.
+
+Windows PowerShell example (temporary for current terminal session):
+
+```powershell
+$env:OPENROUTER_API_KEY="YOUR_KEY_HERE"
+```
+
+Optional:
+
+- `API_PORT` (default: `8787`)
+- `OPENROUTER_BASE_URL` (default: `https://openrouter.ai/api/v1`)
+
+## Run Locally
 
 ### 1) Start the Backend API (FastAPI)
 
-Open PowerShell in the project folder and run:
+From the project root:
 
 ```powershell
 cd backend
@@ -84,43 +101,27 @@ pip install -r requirements.txt
 python main.py
 ```
 
-Backend will start on:
+Backend will start at:
 
-- `http://localhost:8787`
-
-#### Backend configuration (required for LLM extraction)
-
-The backend uses OpenRouter for LLM-based extraction. Set the following environment variable before starting the backend:
-
-```powershell
-$env:OPENROUTER_API_KEY="YOUR_KEY_HERE"
-```
-
-Optional:
-
-```powershell
-$env:API_PORT="8787"
-```
+- API: `http://localhost:8787`
+- Health check: `http://localhost:8787/api/health`
 
 ### 2) Start the Frontend (Vite + React)
 
-Open a **new** PowerShell window in the project root and run:
+Open a second terminal in the project root:
 
 ```powershell
 npm install
 npm run dev
 ```
 
-Frontend will start on:
+Frontend will start at:
 
-- `http://localhost:5173`
+- UI: `http://localhost:5173`
 
-### 3) Local URLs Summary
+## Notes (Authentication / Gatekeeper)
 
-- **Frontend**: `http://localhost:5173`
-- **Backend API**: `http://localhost:8787`
+The UI is wired to a separate authentication service (Gatekeeper) at `http://localhost:8000`.
 
-## Notes for Field Uploads (Mobile)
-
-- Upload **clear photos** of the CIF document with good lighting.
-- The backend includes an automatic **Quality Assessment** step (blur + lighting + contrast + resolution). If the photo is too dark/bright/blurry, processing will stop and you’ll be asked to retake the image.
+- If Gatekeeper is not running, the app may show an authentication warning.
+- The backend digitisation API (`http://localhost:8787`) can still be started and tested independently.

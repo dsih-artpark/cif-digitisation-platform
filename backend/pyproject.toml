@@ -1,0 +1,29 @@
+[tool.black]
+line-length = 100
+target-version = ["py313"]
+skip-string-normalization = false
+
+[tool.ruff]
+target-version = "py313"
+line-length = 100
+extend-exclude = ["venv", ".venv", "__pycache__"]
+
+[tool.ruff.lint]
+# Core, low-noise ruleset (good starting point)
+select = [
+  "E",   # pycodestyle errors
+  "F",   # pyflakes
+  "I",   # import sorting
+  "UP",  # pyupgrade
+  "B",   # flake8-bugbear
+]
+ignore = [
+  "E501", # line length handled by black
+]
+
+[tool.ruff.lint.isort]
+known-first-party = ["backend"]
+
+[tool.ruff.format]
+# Keep formatting responsibility with Black in Option B
+# (So we won't run `ruff format` in pre-commit)
