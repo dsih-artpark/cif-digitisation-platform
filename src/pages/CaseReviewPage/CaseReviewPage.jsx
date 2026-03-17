@@ -6,9 +6,11 @@ import CaseCard from "../../components/CaseCard/CaseCard";
 import CaseTable from "../../components/CaseTable/CaseTable";
 import DocumentCompare from "../../components/DocumentCompare/DocumentCompare";
 import ValidationRules from "../../components/ValidationRules/ValidationRules";
+import { DEMO_ROLES } from "../../config/roleAccess";
 import { useCif } from "../../context/CifContext";
 
 function isValidDdmmyyyy(value) {
+  if (!value || String(value).toLowerCase() === "n/a") return false;
   const pattern = /^(\d{2})-(\d{2})-(\d{4})$/;
   const match = value.match(pattern);
   if (!match) return false;
@@ -33,7 +35,13 @@ function isDateNotFuture(value) {
   return selected <= now;
 }
 
-function CaseReviewPage() {
+function isMissingValue(value) {
+  if (value === null || value === undefined) return true;
+  const normalized = String(value).trim().toLowerCase();
+  return !normalized || normalized === "n/a" || normalized === "unknown";
+}
+
+function CaseReviewPage({ activeRole = "" }) {
   const navigate = useNavigate();
   const [toastOpen, setToastOpen] = useState(false);
   const {
@@ -46,12 +54,13 @@ function CaseReviewPage() {
     recordStatus,
     setRecordStatus,
   } = useCif();
+  const showValidationRules = activeRole === DEMO_ROLES.USER_ANALYTICS;
 
   const rows = useMemo(
     () => [
       { key: "patientName", label: "Patient Name", value: caseData.patientName, status: fieldStatus.patientName },
       { key: "age", label: "Age", value: caseData.age, status: fieldStatus.age },
-      { key: "department", label: "Department", value: caseData.department, status: fieldStatus.department },
+      { key: "sex", label: "Sex", value: caseData.sex, status: fieldStatus.sex },
       { key: "date", label: "Date", value: caseData.date, status: fieldStatus.date },
       { key: "symptoms", label: "Symptoms", value: caseData.symptoms, status: fieldStatus.symptoms },
       { key: "diagnosis", label: "Diagnosis", value: caseData.diagnosis, status: fieldStatus.diagnosis },
@@ -67,15 +76,18 @@ function CaseReviewPage() {
   );
 
   const validationRules = useMemo(() => {
-    const requiredKeys = ["patientName", "age", "department", "date", "symptoms", "diagnosis", "medicines"];
-    const missingFields = requiredKeys.filter((key) => !String(caseData[key] || "").trim());
+    const requiredKeys = ["patientName", "age", "sex", "date", "symptoms", "diagnosis", "medicines"];
+    const missingFields = requiredKeys.filter((key) => isMissingValue(caseData[key]));
     const ageNumber = Number(caseData.age);
+    const normalizedSex = String(caseData.sex || "").trim().toLowerCase();
     const medicineLines = String(caseData.medicines || "")
       .split("\n")
       .map((item) => item.trim())
-      .filter(Boolean);
+      .filter((value) => value && !isMissingValue(value));
     const hasDoseInfo = medicineLines.some((item) => /\b\d+\s?(mg|ml|mcg)\b/i.test(item));
     const verifiedCount = Object.values(fieldStatus).filter((status) => status === "Verified").length;
+    const validAge = !isMissingValue(caseData.age) && Number.isFinite(ageNumber) && ageNumber >= 0 && ageNumber <= 120;
+    const validSex = ["male", "female", "other"].includes(normalizedSex);
 
     return [
       {
@@ -90,11 +102,8 @@ function CaseReviewPage() {
       {
         id: "age-validation",
         title: "Age Range Validation",
-        status: Number.isFinite(ageNumber) && ageNumber >= 0 && ageNumber <= 120 ? "pass" : "error",
-        message:
-          Number.isFinite(ageNumber) && ageNumber >= 0 && ageNumber <= 120
-            ? "Age format and range look valid."
-            : "Age must be a number between 0 and 120.",
+        status: validAge ? "pass" : "error",
+        message: validAge ? "Age format and range look valid." : "Age must be a number between 0 and 120.",
       },
       {
         id: "date-validation",
@@ -103,6 +112,12 @@ function CaseReviewPage() {
         message: isDateNotFuture(caseData.date)
           ? "Date format is valid and not in the future."
           : "Date must be in DD-MM-YYYY format and not be future dated.",
+      },
+      {
+        id: "sex-validation",
+        title: "Sex Validation",
+        status: validSex ? "pass" : "warning",
+        message: validSex ? "Sex field is captured in a supported format." : "Review sex field manually.",
       },
       {
         id: "medicine-check",
@@ -144,7 +159,8 @@ function CaseReviewPage() {
 
   const handleSave = () => {
     setToastOpen(true);
-    setRecordStatus("Verified");
+    const allVerified = Object.values(fieldStatus).every((status) => status === "Verified");
+    setRecordStatus(allVerified ? "Verified" : "Review Required");
     setTimeout(() => navigate("/dashboard"), 1800);
   };
 
@@ -163,7 +179,7 @@ function CaseReviewPage() {
         fieldStatus={fieldStatus}
       />
 
-      <ValidationRules rules={validationRules} />
+      {showValidationRules && <ValidationRules rules={validationRules} />}
 
       <CaseTable rows={rows} onValueChange={handleChange} />
 

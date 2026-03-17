@@ -3,6 +3,7 @@ import DescriptionRoundedIcon from "@mui/icons-material/DescriptionRounded";
 import { Box, Button, Card, CardContent, Stack, Typography } from "@mui/material";
 import { useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { createDigitizeJob } from "../../api/digitizeClient";
 import BackButton from "../../components/BackButton/BackButton";
 import { useCif } from "../../context/CifContext";
 
@@ -10,10 +11,25 @@ function UploadPage({ activeRole }) {
   const navigate = useNavigate();
   const inputRef = useRef(null);
   const [isDragActive, setIsDragActive] = useState(false);
-  const { uploadedFile, setUploadedFile, previewUrl, setPreviewUrl, addUploadedDocument } = useCif();
+  const [isStarting, setIsStarting] = useState(false);
+  const [startError, setStartError] = useState("");
+  const {
+    uploadedFile,
+    setUploadedFile,
+    previewUrl,
+    setPreviewUrl,
+    addUploadedDocument,
+    setProcessingJobId,
+    setProcessingError,
+    resetExtractionState,
+    markCurrentUploadStatus,
+  } = useCif();
 
   const handleFile = (file) => {
     if (!file) return;
+    setStartError("");
+    setProcessingError("");
+    resetExtractionState();
     if (previewUrl) {
       URL.revokeObjectURL(previewUrl);
     }
@@ -32,6 +48,27 @@ function UploadPage({ activeRole }) {
     setIsDragActive(false);
     const file = event.dataTransfer.files?.[0];
     handleFile(file);
+  };
+
+  const handleStartProcessing = async () => {
+    if (!uploadedFile || isStarting) return;
+    setStartError("");
+    setProcessingError("");
+    setIsStarting(true);
+    markCurrentUploadStatus({ extractionStatus: "Processing" });
+
+    try {
+      const jobId = await createDigitizeJob(uploadedFile);
+      setProcessingJobId(jobId);
+      navigate("/processing");
+    } catch (error) {
+      const message = error?.message || "Unable to start document processing.";
+      setStartError(message);
+      setProcessingError(message);
+      markCurrentUploadStatus({ extractionStatus: "Failed", recordStatus: "Review Required" });
+    } finally {
+      setIsStarting(false);
+    }
   };
 
   return (
@@ -127,12 +164,17 @@ function UploadPage({ activeRole }) {
         <Button
           variant="contained"
           size="large"
-          disabled={!uploadedFile}
-          onClick={() => navigate("/processing")}
+          disabled={!uploadedFile || isStarting}
+          onClick={handleStartProcessing}
           sx={{ width: { xs: "100%", sm: "auto" } }}
         >
-          Start Processing
+          {isStarting ? "Starting..." : "Start Processing"}
         </Button>
+        {startError && (
+          <Typography mt={1} color="error.main" variant="body2">
+            {startError}
+          </Typography>
+        )}
       </Box>
     </Stack>
   );

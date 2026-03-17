@@ -1,7 +1,6 @@
 export const extractedCaseData = {
   patientName: "Jagdesh Mishra",
   age: "50",
-  department: "Casualty",
   date: "17-10-2022",
   symptoms: "Fever",
   diagnosis: "Acute viral illness",
@@ -12,7 +11,6 @@ export const extractedCaseData = {
 export const extractedStatus = {
   patientName: "Verified",
   age: "System Extracted",
-  department: "Verified",
   date: "Review Required",
   symptoms: "System Extracted",
   diagnosis: "Verified",
@@ -34,14 +32,6 @@ export const weeklyCaseTrend = [
   { week: "Week 5", cases: 145 },
   { week: "Week 6", cases: 138 },
   { week: "Week 7", cases: 160 },
-];
-
-export const departmentDistribution = [
-  { department: "Casualty", cases: 420 },
-  { department: "Medicine", cases: 610 },
-  { department: "Pediatrics", cases: 305 },
-  { department: "OPD", cases: 500 },
-  { department: "Emergency", cases: 378 },
 ];
 
 export const statusBreakdown = [
@@ -117,16 +107,6 @@ function createWeeklyTrend(totalCases, growth) {
   });
 }
 
-function createDepartmentSplit(totalCases) {
-  return [
-    { department: "Casualty", cases: Math.round(totalCases * 0.2) },
-    { department: "Medicine", cases: Math.round(totalCases * 0.28) },
-    { department: "Pediatrics", cases: Math.round(totalCases * 0.13) },
-    { department: "OPD", cases: Math.round(totalCases * 0.24) },
-    { department: "Emergency", cases: Math.round(totalCases * 0.15) },
-  ];
-}
-
 function createStatusSplit(verifiedRate) {
   const verified = Math.round(verifiedRate * 100);
   const review = Math.round((1 - verifiedRate) * 65);
@@ -167,7 +147,6 @@ export const stateProfiles = Object.entries(stateMapDetails).reduce((accumulator
     newCasesThisWeek: Math.round(totalCases * config.newCaseRate),
     verifiedRecords: Math.round(totalCases * config.verifiedRate),
     weeklyTrend: createWeeklyTrend(totalCases, config.growth),
-    departmentDistribution: createDepartmentSplit(totalCases),
     statusBreakdown: createStatusSplit(config.verifiedRate),
     segments: createSegments(totalCases, config.urbanShare),
   };

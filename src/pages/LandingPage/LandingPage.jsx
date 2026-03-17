@@ -74,6 +74,10 @@ function getGatekeeperAuthUrl(path, routePath) {
   return `${GATEKEEPER_BASE_URL}${path}?redirect=${encodeURIComponent(redirectUrl)}`;
 }
 
+function getGatekeeperSignoutUrl(redirectUrl) {
+  return `${GATEKEEPER_BASE_URL}/signout?redirect=${encodeURIComponent(redirectUrl)}`;
+}
+
 function LandingPage({ authError = "" }) {
   const [authDialogOpen, setAuthDialogOpen] = useState(false);
   const [selectedAccess, setSelectedAccess] = useState(null);
@@ -86,7 +90,16 @@ function LandingPage({ authError = "" }) {
 
   const handleGatekeeperRedirect = (authPath) => {
     if (!selectedAccess) return;
-    window.location.href = getGatekeeperAuthUrl(authPath, selectedAccess.route);
+    const authUrl = getGatekeeperAuthUrl(authPath, selectedAccess.route);
+
+    // Force a clean auth session before signup so Gatekeeper does not auto-redirect
+    // using an already authenticated user cookie.
+    if (authPath === "/signup") {
+      window.location.href = getGatekeeperSignoutUrl(authUrl);
+      return;
+    }
+
+    window.location.href = authUrl;
   };
 
   return (

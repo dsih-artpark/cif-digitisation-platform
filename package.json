@@ -4,6 +4,7 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
+    "api": "python -m uvicorn backend.app:app --host 0.0.0.0 --port 8787 --reload --access-log",
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview"
