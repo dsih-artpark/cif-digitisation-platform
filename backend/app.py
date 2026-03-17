@@ -465,18 +465,18 @@ def assess_image_quality(image_data_url: str) -> dict[str, Any]:
         # Generate specific feedback for failed metrics
         feedback = []
         if not metrics["sharpness"]["pass"]:
-            feedback.append("Image appears blurry - ensure steady hands when capturing")
+            feedback.append("Image is blurry. Please retake the photo and keep the camera steady.")
         if not metrics["brightness"]["pass"]:
             if metrics["brightness"]["mean"] < quality_thresholds["brightness_min"]:
-                feedback.append("Image too dark - improve lighting conditions")
+                feedback.append("Image lighting is too dark. Please retake the photo in better light.")
             else:
-                feedback.append("Image too bright - reduce lighting or adjust exposure")
+                feedback.append("Image lighting is too bright (glare/overexposure). Please retake the photo without glare.")
         if not metrics["contrast"]["pass"]:
-            feedback.append("Low contrast detected - ensure proper document lighting")
+            feedback.append("Image contrast is low. Avoid shadows and ensure the document is evenly lit.")
         if not metrics["text_coverage"]["pass"]:
-            feedback.append("Insufficient text content - ensure document is fully visible")
+            feedback.append("Document text is not clearly visible. Ensure the full document is in frame and readable.")
         if not metrics["resolution"]["pass"]:
-            feedback.append("Low resolution - capture image from appropriate distance")
+            feedback.append("Image resolution is low. Capture the document closer and ensure it is in focus.")
         
         return {
             "status": status,
@@ -699,14 +699,14 @@ async def process_job(job: dict[str, Any], payload: DigitizePayload) -> None:
         quality_result = await asyncio.to_thread(assess_image_quality, payload.fileDataUrl)
         
         if quality_result["status"] == "FAIL":
-            feedback_msg = "; ".join(quality_result["feedback"])
+            feedback_msg = " ".join(quality_result.get("feedback") or [])
             append_log(job, f"Quality assessment failed: {feedback_msg}")
             raise HTTPException(
                 status_code=400, 
-                detail=f"Document quality check failed: {feedback_msg}. Please retake the image with better quality."
+                detail=f"Document quality check failed. {feedback_msg} Please retake and upload a clearer image."
             )
         elif quality_result["status"] == "WARNING":
-            feedback_msg = "; ".join(quality_result["feedback"])
+            feedback_msg = " ".join(quality_result.get("feedback") or [])
             append_log(job, f"Quality warning: {feedback_msg}")
             logger.info(f"Quality warning for job {job['id']}: {feedback_msg}")
         else:
