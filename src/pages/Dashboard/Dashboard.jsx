@@ -14,7 +14,6 @@ import {
 } from "@mui/material";
 import { useNavigate } from "react-router-dom";
 import BackButton from "../../components/BackButton/BackButton";
-import DepartmentBarChart from "../../components/Charts/DepartmentBarChart";
 import RegionalBarChart from "../../components/Charts/RegionalBarChart";
 import RegionalLineChart from "../../components/Charts/RegionalLineChart";
 import StatCard from "../../components/Charts/StatCard";
@@ -26,7 +25,6 @@ import { DEMO_ROLES } from "../../config/roleAccess";
 import { useCif } from "../../context/CifContext";
 import {
   casesByState,
-  departmentDistribution,
   nationalSegments,
   regionalTrend,
   statusBreakdown,
@@ -67,9 +65,6 @@ function Dashboard({ activeRole }) {
   }, [activeStateProfile]);
 
   const trendData = activeStateProfile ? activeStateProfile.weeklyTrend : weeklyCaseTrend;
-  const departmentData = activeStateProfile
-    ? activeStateProfile.departmentDistribution
-    : departmentDistribution;
   const statusData = activeStateProfile ? activeStateProfile.statusBreakdown : statusBreakdown;
   const segmentData = activeStateProfile ? activeStateProfile.segments : nationalSegments;
 
@@ -126,19 +121,6 @@ function Dashboard({ activeRole }) {
             title={selectedStateName ? `${selectedRegionLabel} Weekly Trend` : "Weekly Case Trend"}
           />
         </Grid>
-        <Grid item xs={12} md={6}>
-          <DepartmentBarChart
-            data={departmentData}
-            title={
-              selectedStateName
-                ? `${selectedRegionLabel} Department Distribution`
-                : "Department Case Distribution"
-            }
-          />
-        </Grid>
-      </Grid>
-
-      <Grid container spacing={2}>
         <Grid item xs={12} md={6}>
           <StatusPieChart
             data={statusData}

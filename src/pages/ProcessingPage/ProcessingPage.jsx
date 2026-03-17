@@ -1,43 +1,20 @@
 import InsertDriveFileRoundedIcon from "@mui/icons-material/InsertDriveFileRounded";
-import { Box, Card, CardContent, Chip, Divider, LinearProgress, Stack, Typography } from "@mui/material";
+import { Alert, Box, Card, CardContent, Chip, Divider, LinearProgress, Stack, Typography } from "@mui/material";
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { getDigitizeJob } from "../../api/digitizeClient";
 import BackButton from "../../components/BackButton/BackButton";
 import ProcessingTimeline from "../../components/ProcessingTimeline/ProcessingTimeline";
-import { useCif } from "../../context/CifContext";
 import { DEMO_ROLES } from "../../config/roleAccess";
+import { useCif } from "../../context/CifContext";
 
 const STEP_CONFIG = [
-  {
-    label: "Document Received",
-    durationMs: 1600,
-    note: "Validating file integrity and metadata",
-    doneLog: "Source document accepted by ingestion service",
-  },
-  {
-    label: "Image Pre-processing",
-    durationMs: 2400,
-    note: "Deskewing, denoising and contrast enhancement",
-    doneLog: "Image quality normalized for OCR",
-  },
-  {
-    label: "Text Detection",
-    durationMs: 3000,
-    note: "Running OCR model and detecting text regions",
-    doneLog: "Detected handwritten and printed text blocks",
-  },
-  {
-    label: "Field Extraction",
-    durationMs: 2200,
-    note: "Mapping detected text to CIF structured fields",
-    doneLog: "Mapped patient and clinical fields with confidence scoring",
-  },
-  {
-    label: "Structured Record Generation",
-    durationMs: 1700,
-    note: "Generating CIF record and preparing review draft",
-    doneLog: "Draft record generated and queued for verification",
-  },
+  "Document Received",
+  "Image Pre-processing",
+  "Quality Assessment",
+  "Text Detection",
+  "Field Extraction",
+  "Structured Record Generation",
 ];
 
 function formatSeconds(totalMs) {
@@ -49,28 +26,38 @@ function formatSeconds(totalMs) {
   return `${minutes}:${seconds}`;
 }
 
+function getFallbackNote(stepLabel) {
+  if (stepLabel === "Document Received") return "Validating file integrity and metadata";
+  if (stepLabel === "Image Pre-processing") return "Preparing image payload for extraction";
+  if (stepLabel === "Quality Assessment") return "Analyzing document quality and readability";
+  if (stepLabel === "Text Detection") return "Running multilingual OCR-style extraction";
+  if (stepLabel === "Field Extraction") return "Mapping extracted text to CIF fields";
+  return "Generating final structured record";
+}
+
 function ProcessingPage({ activeRole = "" }) {
   const navigate = useNavigate();
-  const { uploadedFile } = useCif();
+  const {
+    uploadedFile,
+    processingJobId,
+    processingError,
+    setProcessingError,
+    applyExtractionResult,
+    markCurrentUploadStatus,
+  } = useCif();
   const isFrontLineWorker = activeRole === DEMO_ROLES.FRONT_LINE_WORKER;
   const [activeStep, setActiveStep] = useState(0);
   const [completed, setCompleted] = useState(Array(STEP_CONFIG.length).fill(false));
   const [stepProgress, setStepProgress] = useState(0);
   const [progress, setProgress] = useState(0);
   const [elapsedMs, setElapsedMs] = useState(0);
-  const [etaMs, setEtaMs] = useState(STEP_CONFIG.reduce((sum, step) => sum + step.durationMs, 0));
+  const [etaMs, setEtaMs] = useState(0);
   const [processingLog, setProcessingLog] = useState([]);
-  const [currentNote, setCurrentNote] = useState(STEP_CONFIG[0].note);
+  const [currentNote, setCurrentNote] = useState(getFallbackNote(STEP_CONFIG[0]));
 
-  const intervalRef = useRef(null);
+  const pollIntervalRef = useRef(null);
   const navTimeoutRef = useRef(null);
-  const runIdRef = useRef(0);
-  const processStateRef = useRef({
-    currentStep: 0,
-    stepStartMs: 0,
-    flowStartMs: 0,
-    completedRef: Array(STEP_CONFIG.length).fill(false),
-  });
+  const completionHandledRef = useRef(false);
 
   useEffect(() => {
     if (!uploadedFile) {
@@ -78,86 +65,114 @@ function ProcessingPage({ activeRole = "" }) {
       return undefined;
     }
 
-    const now = Date.now();
-    runIdRef.current += 1;
-    const runId = runIdRef.current;
+    if (!processingJobId) {
+      const message = "Processing job is missing. Please upload and start processing again.";
+      setProcessingError(message);
+      navigate("/upload", { replace: true });
+      return undefined;
+    }
 
-    processStateRef.current = {
-      currentStep: 0,
-      stepStartMs: now,
-      flowStartMs: now,
-      completedRef: Array(STEP_CONFIG.length).fill(false),
-    };
-    setProcessingLog([`[${new Date(now).toLocaleTimeString()}] Job started for ${uploadedFile.name}`]);
-    setActiveStep(0);
-    setCompleted(Array(STEP_CONFIG.length).fill(false));
-    setStepProgress(0);
-    setProgress(0);
-    setCurrentNote(STEP_CONFIG[0].note);
+    completionHandledRef.current = false;
 
-    intervalRef.current = setInterval(() => {
-      if (runIdRef.current !== runId) return;
+    const syncFromJob = (job) => {
+      const stageStates = Array.isArray(job?.stages) ? job.stages : [];
+      const completedFlags = STEP_CONFIG.map((_, index) => stageStates[index]?.status === "completed");
+      setCompleted(completedFlags);
 
-      const tickNow = Date.now();
-      const state = processStateRef.current;
-      const step = STEP_CONFIG[state.currentStep];
-      const stepElapsed = tickNow - state.stepStartMs;
-      const localStepProgress = Math.min(100, Math.round((stepElapsed / step.durationMs) * 100));
-      const completedPortion = state.currentStep / STEP_CONFIG.length;
-      const runningPortion = (localStepProgress / 100) * (1 / STEP_CONFIG.length);
-      const overallProgress = Math.min(100, Math.round((completedPortion + runningPortion) * 100));
+      let currentStepIndex = stageStates.findIndex((stage) => stage.status === "running");
+      if (currentStepIndex === -1) {
+        currentStepIndex = stageStates.findIndex((stage) => stage.status === "pending");
+      }
+      if (currentStepIndex === -1) {
+        currentStepIndex = Math.max(stageStates.length - 1, 0);
+      }
 
-      setActiveStep(state.currentStep);
-      setStepProgress(localStepProgress);
-      setProgress(overallProgress);
-      setElapsedMs(tickNow - state.flowStartMs);
+      const stageLabel = STEP_CONFIG[currentStepIndex] || STEP_CONFIG[0];
+      const stageProgress = stageStates[currentStepIndex]?.progress || (completedFlags[currentStepIndex] ? 100 : 0);
+      const note = stageStates[currentStepIndex]?.note || getFallbackNote(stageLabel);
 
-      const remainingCurrent = Math.max(step.durationMs - stepElapsed, 0);
-      const futureMs = STEP_CONFIG.slice(state.currentStep + 1).reduce(
-        (sum, stepItem) => sum + stepItem.durationMs,
-        0
+      setActiveStep(currentStepIndex);
+      setStepProgress(stageProgress);
+      setProgress(job?.progress || 0);
+      setElapsedMs(job?.elapsedMs || 0);
+      setEtaMs(job?.etaMs || 0);
+      setCurrentNote(note);
+      setProcessingLog(
+        (job?.logs || []).map((item) => {
+          const timestamp = item?.timestamp ? new Date(item.timestamp).toLocaleTimeString() : "--:--:--";
+          return `[${timestamp}] ${item?.message || ""}`;
+        })
       );
-      setEtaMs(remainingCurrent + futureMs);
+    };
 
-      if (localStepProgress < 100) {
-        return;
+    const stopPolling = () => {
+      if (pollIntervalRef.current) {
+        clearInterval(pollIntervalRef.current);
+        pollIntervalRef.current = null;
       }
+    };
 
-      const nextCompleted = [...state.completedRef];
-      nextCompleted[state.currentStep] = true;
-      state.completedRef = nextCompleted;
-      setCompleted(nextCompleted);
-      setProcessingLog((prev) => [
-        ...prev,
-        `[${new Date(tickNow).toLocaleTimeString()}] ${step.doneLog}`,
-      ]);
+    const pollJob = async () => {
+      try {
+        const job = await getDigitizeJob(processingJobId);
+        syncFromJob(job);
 
-      if (state.currentStep === STEP_CONFIG.length - 1) {
-        clearInterval(intervalRef.current);
-        intervalRef.current = null;
-        setStepProgress(100);
-        setProgress(100);
-        setCurrentNote("Final validation completed");
-        navTimeoutRef.current = setTimeout(() => navigate("/case-review"), 1500);
-        return;
+        if (job.status === "completed" && !completionHandledRef.current) {
+          completionHandledRef.current = true;
+          stopPolling();
+          setProcessingError("");
+          applyExtractionResult(job.result);
+          markCurrentUploadStatus({
+            extractionStatus: "Completed",
+            recordStatus: job?.result?.recordStatus || "Review Required",
+            processedAt: new Date().toISOString(),
+          });
+          navTimeoutRef.current = setTimeout(() => navigate("/case-review"), 900);
+          return;
+        }
+
+        if (job.status === "failed") {
+          stopPolling();
+          const message = job?.error?.message || "Document processing failed. Please try again.";
+          setCurrentNote(message);
+          setProcessingError(message);
+          markCurrentUploadStatus({
+            extractionStatus: "Failed",
+            recordStatus: "Review Required",
+            processedAt: new Date().toISOString(),
+          });
+        }
+      } catch (error) {
+        stopPolling();
+        const message = error?.message || "Unable to fetch processing status.";
+        setCurrentNote(message);
+        setProcessingError(message);
+        markCurrentUploadStatus({
+          extractionStatus: "Failed",
+          recordStatus: "Review Required",
+          processedAt: new Date().toISOString(),
+        });
       }
+    };
 
-      state.currentStep += 1;
-      state.stepStartMs = tickNow;
-      setCurrentNote(STEP_CONFIG[state.currentStep].note);
-    }, 120);
+    pollJob();
+    pollIntervalRef.current = setInterval(pollJob, 1200);
 
     return () => {
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current);
-        intervalRef.current = null;
-      }
+      stopPolling();
       if (navTimeoutRef.current) {
         clearTimeout(navTimeoutRef.current);
         navTimeoutRef.current = null;
       }
     };
-  }, [navigate, uploadedFile]);
+  }, [
+    uploadedFile,
+    processingJobId,
+    navigate,
+    setProcessingError,
+    applyExtractionResult,
+    markCurrentUploadStatus,
+  ]);
 
   return (
     <Stack spacing={3}>
@@ -167,9 +182,16 @@ function ProcessingPage({ activeRole = "" }) {
         <Typography color="text.secondary">
           {isFrontLineWorker
             ? "Processing uploaded document for case extraction."
-            : "Simulating OCR and case extraction workflow stages."}
+            : "Processing uploaded document through real extraction workflow."}
         </Typography>
       </Box>
+
+      {processingError && (
+        <Alert severity="error" variant="outlined">
+          {processingError}
+        </Alert>
+      )}
+
       <Card>
         <CardContent>
           <Stack
@@ -190,13 +212,13 @@ function ProcessingPage({ activeRole = "" }) {
           </Stack>
           <LinearProgress variant="determinate" value={progress} sx={{ mb: 1, height: 8, borderRadius: 10 }} />
           <Typography variant="body2" color="text.secondary" mb={2}>
-            {currentNote} ({progress}% complete)
+            {progress}% complete
           </Typography>
           {!isFrontLineWorker && (
             <>
               <Divider sx={{ mb: 2 }} />
               <ProcessingTimeline
-                steps={STEP_CONFIG.map((step) => step.label)}
+                steps={STEP_CONFIG}
                 activeStep={activeStep}
                 completed={completed}
                 stepProgress={stepProgress}

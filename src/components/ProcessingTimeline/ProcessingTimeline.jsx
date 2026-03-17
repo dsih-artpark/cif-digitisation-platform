@@ -37,7 +37,7 @@ function ProcessingTimeline({ steps, activeStep, completed, stepProgress, curren
                   {isCompleted
                     ? "Completed successfully"
                     : isActive
-                      ? `${currentNote} (${stepProgress}%)`
+                      ? `${stepProgress}% complete`
                       : "Queued for processing"}
                 </Typography>
                 {isActive && (

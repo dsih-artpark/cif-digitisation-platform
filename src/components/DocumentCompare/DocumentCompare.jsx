@@ -33,6 +33,8 @@ function DocumentCompare({ uploadedFile, previewUrl, caseData, fieldStatus }) {
     .split("\n")
     .map((item) => item.trim())
     .filter(Boolean);
+  const medicineDisplayLines =
+    medicines.length > 0 ? medicines : ["N/A"];
 
   return (
     <Card>
@@ -101,11 +103,7 @@ function DocumentCompare({ uploadedFile, previewUrl, caseData, fieldStatus }) {
                 <Divider />
                 <SummaryItem label="Age" value={caseData.age} status={fieldStatus.age} />
                 <Divider />
-                <SummaryItem
-                  label="Department"
-                  value={caseData.department}
-                  status={fieldStatus.department}
-                />
+                <SummaryItem label="Sex" value={caseData.sex} status={fieldStatus.sex} />
                 <Divider />
                 <SummaryItem label="Date" value={caseData.date} status={fieldStatus.date} />
                 <Divider />
@@ -127,8 +125,8 @@ function DocumentCompare({ uploadedFile, previewUrl, caseData, fieldStatus }) {
                     </Typography>
                     <Chip label={fieldStatus.medicines} size="small" color={statusColor(fieldStatus.medicines)} />
                   </Stack>
-                  {medicines.length > 0 ? (
-                    medicines.map((medicine, index) => (
+                  {medicineDisplayLines.length > 0 ? (
+                    medicineDisplayLines.map((medicine, index) => (
                       <Typography key={`${medicine}-${index}`} variant="body2">
                         - {medicine}
                       </Typography>
