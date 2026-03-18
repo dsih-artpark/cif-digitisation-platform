@@ -70,23 +70,6 @@ cd cif-digitisation-platform
 - **Node.js**: 18+ recommended (for the Vite + React frontend)
 - **Python**: 3.10+ recommended (for the FastAPI backend)
 
-## Environment Variables
-
-### Backend (required for LLM extraction)
-
-Set **`OPENROUTER_API_KEY`** for the backend before running.
-
-Windows PowerShell example (temporary for current terminal session):
-
-```powershell
-$env:OPENROUTER_API_KEY="YOUR_KEY_HERE"
-```
-
-Optional:
-
-- `API_PORT` (default: `8787`)
-- `OPENROUTER_BASE_URL` (default: `https://openrouter.ai/api/v1`)
-
 ## Run Locally
 
 ### 1) Start the Backend API (FastAPI)
@@ -103,8 +86,7 @@ python main.py
 
 Backend will start at:
 
-- API: `http://localhost:8787`
-- Health check: `http://localhost:8787/api/health`
+- Configured API host/port in your local environment
 
 ### 2) Start the Frontend (Vite + React)
 
@@ -124,4 +106,4 @@ Frontend will start at:
 The UI is wired to a separate authentication service (Gatekeeper) at `http://localhost:8000`.
 
 - If Gatekeeper is not running, the app may show an authentication warning.
-- The backend digitisation API (`http://localhost:8787`) can still be started and tested independently.
+- The backend digitisation API can still be started and tested independently.
