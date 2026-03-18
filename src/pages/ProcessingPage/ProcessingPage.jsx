@@ -17,6 +17,11 @@ const STEP_CONFIG = [
   "Structured Record Generation",
 ];
 
+const QUALITY_REDIRECT_MESSAGES = [
+  "The image is too dark. Please retake with better lighting.",
+  "The image is too bright. Please avoid excessive lighting and retake.",
+];
+
 function formatSeconds(totalMs) {
   const totalSeconds = Math.max(0, Math.ceil(totalMs / 1000));
   const minutes = Math.floor(totalSeconds / 60)
@@ -33,6 +38,10 @@ function getFallbackNote(stepLabel) {
   if (stepLabel === "Text Detection") return "Extracting text from document";
   if (stepLabel === "Field Extraction") return "Mapping extracted text to CIF fields";
   return "Generating final structured record";
+}
+
+function shouldRedirectToUpload(message = "") {
+  return QUALITY_REDIRECT_MESSAGES.includes(message.trim());
 }
 
 function ProcessingPage({ activeRole = "" }) {
@@ -57,6 +66,7 @@ function ProcessingPage({ activeRole = "" }) {
 
   const pollIntervalRef = useRef(null);
   const navTimeoutRef = useRef(null);
+  const uploadRedirectTimeoutRef = useRef(null);
   const completionHandledRef = useRef(false);
 
   useEffect(() => {
@@ -73,6 +83,16 @@ function ProcessingPage({ activeRole = "" }) {
     }
 
     completionHandledRef.current = false;
+
+    const scheduleUploadRedirect = (message) => {
+      if (!shouldRedirectToUpload(message)) return;
+      if (uploadRedirectTimeoutRef.current) {
+        clearTimeout(uploadRedirectTimeoutRef.current);
+      }
+      uploadRedirectTimeoutRef.current = setTimeout(() => {
+        navigate("/upload", { replace: true });
+      }, 3000);
+    };
 
     const syncFromJob = (job) => {
       const stageStates = Array.isArray(job?.stages) ? job.stages : [];
@@ -136,6 +156,7 @@ function ProcessingPage({ activeRole = "" }) {
           const message = job?.error?.message || "Document processing failed. Please try again.";
           setCurrentNote(message);
           setProcessingError(message);
+          scheduleUploadRedirect(message);
           markCurrentUploadStatus({
             extractionStatus: "Failed",
             recordStatus: "Review Required",
@@ -147,6 +168,7 @@ function ProcessingPage({ activeRole = "" }) {
         const message = error?.message || "Unable to fetch processing status.";
         setCurrentNote(message);
         setProcessingError(message);
+        scheduleUploadRedirect(message);
         markCurrentUploadStatus({
           extractionStatus: "Failed",
           recordStatus: "Review Required",
@@ -163,6 +185,10 @@ function ProcessingPage({ activeRole = "" }) {
       if (navTimeoutRef.current) {
         clearTimeout(navTimeoutRef.current);
         navTimeoutRef.current = null;
+      }
+      if (uploadRedirectTimeoutRef.current) {
+        clearTimeout(uploadRedirectTimeoutRef.current);
+        uploadRedirectTimeoutRef.current = null;
       }
     };
   }, [

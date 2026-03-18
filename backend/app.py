@@ -9,10 +9,10 @@ import os
 import re
 import time
 from datetime import UTC, datetime
+from pathlib import Path
 from typing import Any
 from uuid import uuid4
 
-import cv2
 import numpy as np
 import requests
 from dotenv import load_dotenv
@@ -45,8 +45,8 @@ STAGE_DEFINITIONS = [
     {
         "id": "quality_assessment",
         "label": "Quality Assessment",
-        "note": "Analyzing document quality and readability",
-        "done_log": "Document quality verified for processing",
+        "note": "Checking image brightness before extraction",
+        "done_log": "Image quality check completed",
         "expected_ms": 500,
     },
     {
@@ -73,6 +73,22 @@ STAGE_DEFINITIONS = [
 ]
 
 ALLOWED_MIME_TYPES = {"image/jpeg", "image/jpg", "image/png", "image/webp"}
+IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp"}
+QUALITY_MESSAGE_TOO_DARK = "The image is too dark. Please retake with better lighting."
+QUALITY_MESSAGE_TOO_BRIGHT = (
+    "The image is too bright. Please avoid excessive lighting and retake."
+)
+DEFAULT_QUALITY_THRESHOLDS = {
+    "too_dark_max_mean": 50.0,
+    "too_bright_min_mean": 242.0,
+    "dark_pixel_ratio_max": 0.35,
+    "bright_pixel_ratio_min": 0.65,
+}
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+DUMMY_PRESCRIPTIONS_DIR = PROJECT_ROOT / "Dummy_prescriptions"
+QUALITY_DARK_PIXEL_CUTOFF = 40
+QUALITY_BRIGHT_PIXEL_CUTOFF = 245
+QUALITY_EXTREME_BRIGHT_PIXEL_RATIO = 0.90
 UNKNOWN_MARKERS = {
     "",
     "unknown",
@@ -384,62 +400,157 @@ def normalize_extraction(raw_data: dict[str, Any]) -> dict[str, Any]:
     return {"caseData": case_data, "fieldStatus": field_status, "recordStatus": record_status}
 
 
+def _load_gray_image_from_data_url(image_data_url: str) -> np.ndarray:
+    base64_data = image_data_url.split(",", 1)[1]
+    image_bytes = base64.b64decode(base64_data)
+    with Image.open(io.BytesIO(image_bytes)) as image:
+        return np.array(image.convert("L"))
+
+
+def _load_gray_image_from_path(image_path: Path) -> np.ndarray:
+    with Image.open(image_path) as image:
+        return np.array(image.convert("L"))
+
+
+def _calibrate_quality_thresholds() -> dict[str, Any]:
+    bright_means: list[float] = []
+    dark_means: list[float] = []
+    bright_pixel_ratios: list[float] = []
+    dark_pixel_ratios: list[float] = []
+
+    if not DUMMY_PRESCRIPTIONS_DIR.exists():
+        logger.warning(
+            "Dummy_prescriptions folder not found at %s. Using default quality thresholds.",
+            DUMMY_PRESCRIPTIONS_DIR,
+        )
+        return {"source": "default", **DEFAULT_QUALITY_THRESHOLDS}
+
+    for image_path in sorted(DUMMY_PRESCRIPTIONS_DIR.iterdir()):
+        if not image_path.is_file() or image_path.suffix.lower() not in IMAGE_EXTENSIONS:
+            continue
+        try:
+            gray = _load_gray_image_from_path(image_path)
+            brightness_mean = float(np.mean(gray))
+            dark_ratio = float(np.mean(gray <= QUALITY_DARK_PIXEL_CUTOFF))
+            bright_ratio = float(np.mean(gray >= QUALITY_BRIGHT_PIXEL_CUTOFF))
+        except Exception as exc:
+            logger.warning("Skipping reference image %s due to read error: %s", image_path.name, exc)
+            continue
+
+        stem = image_path.stem.lower()
+        if stem.startswith("bright"):
+            bright_means.append(brightness_mean)
+            bright_pixel_ratios.append(bright_ratio)
+        elif stem.startswith("dark"):
+            dark_means.append(brightness_mean)
+            dark_pixel_ratios.append(dark_ratio)
+
+    if not bright_means or not dark_means or not bright_pixel_ratios or not dark_pixel_ratios:
+        logger.warning(
+            "Insufficient reference images in %s. Using default quality thresholds.",
+            DUMMY_PRESCRIPTIONS_DIR,
+        )
+        return {"source": "default", **DEFAULT_QUALITY_THRESHOLDS}
+
+    # Keep thresholds permissive to avoid false positives on normal documents.
+    too_dark_max_mean = min(60.0, max(dark_means) + 12.0)
+    too_bright_min_mean = max(242.0, float(np.mean(bright_means)) + 15.0)
+    dark_pixel_ratio_max = max(
+        DEFAULT_QUALITY_THRESHOLDS["dark_pixel_ratio_max"],
+        min(0.60, float(np.min(dark_pixel_ratios)) - 0.10),
+    )
+    bright_pixel_ratio_min = max(
+        DEFAULT_QUALITY_THRESHOLDS["bright_pixel_ratio_min"],
+        min(0.85, float(np.percentile(bright_pixel_ratios, 65))),
+    )
+
+    thresholds = {
+        "source": "dummy_prescriptions",
+        "too_dark_max_mean": round(too_dark_max_mean, 2),
+        "too_bright_min_mean": round(too_bright_min_mean, 2),
+        "dark_pixel_ratio_max": round(dark_pixel_ratio_max, 3),
+        "bright_pixel_ratio_min": round(bright_pixel_ratio_min, 3),
+        "dark_pixel_cutoff": QUALITY_DARK_PIXEL_CUTOFF,
+        "bright_pixel_cutoff": QUALITY_BRIGHT_PIXEL_CUTOFF,
+        "extreme_bright_ratio": QUALITY_EXTREME_BRIGHT_PIXEL_RATIO,
+        "references": {
+            "bright_count": len(bright_means),
+            "dark_count": len(dark_means),
+            "bright_min_mean": round(min(bright_means), 2),
+            "bright_avg_mean": round(float(np.mean(bright_means)), 2),
+            "bright_avg_pixel_ratio": round(float(np.mean(bright_pixel_ratios)), 3),
+            "dark_max_mean": round(max(dark_means), 2),
+            "dark_avg_mean": round(float(np.mean(dark_means)), 2),
+            "dark_avg_pixel_ratio": round(float(np.mean(dark_pixel_ratios)), 3),
+        },
+    }
+    logger.info("Quality thresholds calibrated from Dummy_prescriptions: %s", thresholds)
+    return thresholds
+
+
+QUALITY_THRESHOLDS = _calibrate_quality_thresholds()
+
+
 def assess_image_quality(image_data_url: str) -> dict[str, Any]:
-    """
-    Basic lighting check for government document processing.
-    Only flags images that are too dark or too bright (glare/overexposed).
-    """
     try:
-        # Extract image from data URL
-        base64_data = image_data_url.split(",")[1]
-        image_bytes = base64.b64decode(base64_data)
-        image = Image.open(io.BytesIO(image_bytes))
-
-        # Convert to numpy array for OpenCV processing
-        cv_image = cv2.cvtColor(np.array(image), cv2.COLOR_RGB2BGR)
-        gray = cv2.cvtColor(cv_image, cv2.COLOR_BGR2GRAY)
-
+        gray = _load_gray_image_from_data_url(image_data_url)
         brightness_mean = float(np.mean(gray))
-        thresholds = {"brightness_min": 55.0, "brightness_max": 210.0}
+        dark_pixel_ratio = float(np.mean(gray <= QUALITY_DARK_PIXEL_CUTOFF))
+        bright_pixel_ratio = float(np.mean(gray >= QUALITY_BRIGHT_PIXEL_CUTOFF))
 
-        if brightness_mean < thresholds["brightness_min"]:
+        if (
+            brightness_mean <= QUALITY_THRESHOLDS["too_dark_max_mean"]
+            or dark_pixel_ratio >= QUALITY_THRESHOLDS["dark_pixel_ratio_max"]
+        ):
             return {
                 "status": "FAIL",
-                "quality_level": "POOR",
-                "metrics": {"brightness_mean": round(brightness_mean, 2)},
-                "feedback": [
-                    "Image is too dark. Please retake the photo in better light and upload again."
-                ],
-                "thresholds_used": thresholds,
+                "classification": "too_dark",
+                "message": QUALITY_MESSAGE_TOO_DARK,
+                "metrics": {
+                    "brightness_mean": round(brightness_mean, 2),
+                    "dark_pixel_ratio": round(dark_pixel_ratio, 3),
+                    "bright_pixel_ratio": round(bright_pixel_ratio, 3),
+                },
+                "thresholds_used": QUALITY_THRESHOLDS,
             }
 
-        if brightness_mean > thresholds["brightness_max"]:
+        is_too_bright = (
+            brightness_mean >= QUALITY_THRESHOLDS["too_bright_min_mean"]
+            and bright_pixel_ratio >= QUALITY_THRESHOLDS["bright_pixel_ratio_min"]
+        ) or bright_pixel_ratio >= QUALITY_EXTREME_BRIGHT_PIXEL_RATIO
+
+        if is_too_bright:
             return {
                 "status": "FAIL",
-                "quality_level": "POOR",
-                "metrics": {"brightness_mean": round(brightness_mean, 2)},
-                "feedback": [
-                    "Image is too bright / has glare. Please retake the photo without flash/glare and upload again."
-                ],
-                "thresholds_used": thresholds,
+                "classification": "too_bright",
+                "message": QUALITY_MESSAGE_TOO_BRIGHT,
+                "metrics": {
+                    "brightness_mean": round(brightness_mean, 2),
+                    "dark_pixel_ratio": round(dark_pixel_ratio, 3),
+                    "bright_pixel_ratio": round(bright_pixel_ratio, 3),
+                },
+                "thresholds_used": QUALITY_THRESHOLDS,
             }
 
         return {
             "status": "PASS",
-            "quality_level": "GOOD",
-            "metrics": {"brightness_mean": round(brightness_mean, 2)},
-            "feedback": [],
-            "thresholds_used": thresholds,
+            "classification": "acceptable",
+            "message": "",
+            "metrics": {
+                "brightness_mean": round(brightness_mean, 2),
+                "dark_pixel_ratio": round(dark_pixel_ratio, 3),
+                "bright_pixel_ratio": round(bright_pixel_ratio, 3),
+            },
+            "thresholds_used": QUALITY_THRESHOLDS,
         }
-
     except Exception as exc:
-        logger.error(f"Quality assessment failed: {exc}")
+        logger.error("Image quality check failed: %s", exc)
         return {
             "status": "FAIL",
-            "quality_level": "ERROR",
+            "classification": "invalid_image",
+            "message": "Unable to assess image quality. Please upload the image again.",
             "metrics": {},
-            "feedback": ["Unable to assess image quality. Please upload the image again."],
-            "thresholds_used": {},
+            "thresholds_used": QUALITY_THRESHOLDS,
         }
 
 
@@ -673,25 +784,20 @@ async def process_job(job: dict[str, Any], payload: DigitizePayload) -> None:
         mark_stage_completed(job, 1)
 
         mark_stage_running(job, 2)
-        append_log(job, "Assessing document quality for processing")
-        quality_result = await asyncio.to_thread(assess_image_quality, payload.fileDataUrl)
+        append_log(job, "Running image quality check before extraction")
+        quality_result = await asyncio.to_thread(assess_image_quality, normalized_data_url)
 
         if quality_result["status"] == "FAIL":
-            feedback_msg = " ".join(quality_result.get("feedback") or [])
-            append_log(job, f"Quality assessment failed: {feedback_msg}")
+            feedback_msg = quality_result.get("message") or "Document quality check failed."
+            append_log(job, f"Image quality check failed: {feedback_msg}")
             raise HTTPException(
                 status_code=400,
-                detail=f"Document quality check failed. {feedback_msg} Please retake and upload a clearer image.",
+                detail=feedback_msg,
             )
-        elif quality_result["status"] == "WARNING":
-            feedback_msg = " ".join(quality_result.get("feedback") or [])
-            append_log(job, f"Quality warning: {feedback_msg}")
-            logger.info(f"Quality warning for job {job['id']}: {feedback_msg}")
-        else:
-            append_log(job, f"Quality assessment passed: {quality_result['quality_level']} quality")
+        append_log(job, "Image quality check passed: acceptable")
 
         # Store quality metrics in job for analytics
-        job["quality_assessment"] = quality_result
+        job["image_quality_check"] = quality_result
         mark_stage_completed(job, 2)
 
         mark_stage_running(job, 3)
@@ -719,7 +825,7 @@ async def process_job(job: dict[str, Any], payload: DigitizePayload) -> None:
             "metadata": {
                 "model": MODEL_NAME,
                 "extractedAt": now_iso(),
-                "quality_assessment": quality_result,
+                "image_quality_check": quality_result,
             },
         }
         job["usage"] = extraction_output.get("usage")
