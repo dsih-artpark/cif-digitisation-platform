@@ -5,3 +5,5 @@ dist
 __pycache__/
 *.pyc
 prescription docs/
+Dummy_prescription/
+Dummy_prescriptions/
