@@ -1,24 +1,20 @@
 from __future__ import annotations
 
 import asyncio
-import base64
-import io
 import json
 import logging
 import os
 import re
 import time
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 from uuid import uuid4
 
-import numpy as np
 import requests
 from dotenv import load_dotenv
 from fastapi import BackgroundTasks, FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
-from PIL import Image
 from pydantic import BaseModel
 
 load_dotenv()
@@ -38,21 +34,14 @@ STAGE_DEFINITIONS = [
     {
         "id": "image_preprocessing",
         "label": "Image Pre-processing",
-        "note": "Preparing image payload for extraction",
+        "note": "Preparing image payload for model ingestion",
         "done_log": "Image payload normalized for multimodal extraction",
         "expected_ms": 700,
     },
     {
-        "id": "quality_assessment",
-        "label": "Quality Assessment",
-        "note": "Checking image brightness before extraction",
-        "done_log": "Image quality check completed",
-        "expected_ms": 500,
-    },
-    {
         "id": "text_detection",
         "label": "Text Detection",
-        "note": "Running multilingual OCR-style extraction",
+        "note": "Running multilingual OCR-style extraction with Qwen",
         "done_log": "Detected handwritten and printed text blocks",
         "expected_ms": 9000,
     },
@@ -73,22 +62,6 @@ STAGE_DEFINITIONS = [
 ]
 
 ALLOWED_MIME_TYPES = {"image/jpeg", "image/jpg", "image/png", "image/webp"}
-IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp"}
-QUALITY_MESSAGE_TOO_DARK = "The image is too dark. Please retake with better lighting."
-QUALITY_MESSAGE_TOO_BRIGHT = (
-    "The image is too bright. Please avoid excessive lighting and retake."
-)
-DEFAULT_QUALITY_THRESHOLDS = {
-    "too_dark_max_mean": 50.0,
-    "too_bright_min_mean": 242.0,
-    "dark_pixel_ratio_max": 0.35,
-    "bright_pixel_ratio_min": 0.65,
-}
-PROJECT_ROOT = Path(__file__).resolve().parent.parent
-DUMMY_PRESCRIPTIONS_DIR = PROJECT_ROOT / "Dummy_prescriptions"
-QUALITY_DARK_PIXEL_CUTOFF = 40
-QUALITY_BRIGHT_PIXEL_CUTOFF = 245
-QUALITY_EXTREME_BRIGHT_PIXEL_RATIO = 0.90
 UNKNOWN_MARKERS = {
     "",
     "unknown",
@@ -127,7 +100,7 @@ class DigitizePayload(BaseModel):
 
 
 def now_iso() -> str:
-    return datetime.now(UTC).isoformat()
+    return datetime.now(timezone.utc).isoformat()
 
 
 def parse_iso_to_ms(value: str | None) -> int | None:
@@ -234,11 +207,7 @@ def build_snapshot(job: dict[str, Any]) -> dict[str, Any]:
     running_index = get_running_stage_index(job)
     running_progress = stages[running_index]["progress"] / 100 if running_index >= 0 else 0
     completed_equivalent = completed_stages + running_progress
-    progress = (
-        100
-        if job["status"] == "completed"
-        else min(99, round((completed_equivalent / max(total_stages, 1)) * 100))
-    )
+    progress = 100 if job["status"] == "completed" else min(99, round((completed_equivalent / max(total_stages, 1)) * 100))
 
     eta_ms = 0
     if job["status"] not in {"completed", "failed"}:
@@ -254,9 +223,7 @@ def build_snapshot(job: dict[str, Any]) -> dict[str, Any]:
         average_stage_ms = (
             round(sum(completed_durations) / len(completed_durations))
             if completed_durations
-            else round(
-                sum(stage["expected_ms"] for stage in STAGE_DEFINITIONS) / len(STAGE_DEFINITIONS)
-            )
+            else round(sum(stage["expected_ms"] for stage in STAGE_DEFINITIONS) / len(STAGE_DEFINITIONS))
         )
         remaining_stages = max(total_stages - completed_equivalent, 0)
         eta_ms = round(average_stage_ms * remaining_stages)
@@ -360,9 +327,7 @@ def normalize_medicines(medicines_value: Any) -> str:
                 if all(part == "N/A" for part in [name, dose, frequency, duration]):
                     lines.append("N/A")
                     continue
-                lines.append(
-                    " - ".join(part for part in [name, dose, frequency, duration] if part != "N/A")
-                )
+                lines.append(" - ".join(part for part in [name, dose, frequency, duration] if part != "N/A"))
     elif isinstance(medicines_value, str):
         lines = [sanitize_value(part) for part in re.split(r"\r?\n|;|,", medicines_value)]
 
@@ -383,175 +348,15 @@ def normalize_extraction(raw_data: dict[str, Any]) -> dict[str, Any]:
         "patientName": sanitize_value(raw_data.get("patientName")),
         "age": normalize_age(raw_data.get("age")),
         "sex": normalize_sex(raw_data.get("sex")),
+        "department": sanitize_value(raw_data.get("department")),
         "date": normalize_date(raw_data.get("date")),
         "symptoms": sanitize_value(raw_data.get("symptoms")),
         "diagnosis": sanitize_value(raw_data.get("diagnosis")),
         "medicines": normalize_medicines(raw_data.get("medicines")),
     }
-    field_status = {
-        key: ("Review Required" if value == "N/A" else "Verified")
-        for key, value in case_data.items()
-    }
-    record_status = (
-        "Verified"
-        if all(status == "Verified" for status in field_status.values())
-        else "Review Required"
-    )
+    field_status = {key: ("Review Required" if value == "N/A" else "Verified") for key, value in case_data.items()}
+    record_status = "Verified" if all(status == "Verified" for status in field_status.values()) else "Review Required"
     return {"caseData": case_data, "fieldStatus": field_status, "recordStatus": record_status}
-
-
-def _load_gray_image_from_data_url(image_data_url: str) -> np.ndarray:
-    base64_data = image_data_url.split(",", 1)[1]
-    image_bytes = base64.b64decode(base64_data)
-    with Image.open(io.BytesIO(image_bytes)) as image:
-        return np.array(image.convert("L"))
-
-
-def _load_gray_image_from_path(image_path: Path) -> np.ndarray:
-    with Image.open(image_path) as image:
-        return np.array(image.convert("L"))
-
-
-def _calibrate_quality_thresholds() -> dict[str, Any]:
-    bright_means: list[float] = []
-    dark_means: list[float] = []
-    bright_pixel_ratios: list[float] = []
-    dark_pixel_ratios: list[float] = []
-
-    if not DUMMY_PRESCRIPTIONS_DIR.exists():
-        logger.warning(
-            "Dummy_prescriptions folder not found at %s. Using default quality thresholds.",
-            DUMMY_PRESCRIPTIONS_DIR,
-        )
-        return {"source": "default", **DEFAULT_QUALITY_THRESHOLDS}
-
-    for image_path in sorted(DUMMY_PRESCRIPTIONS_DIR.iterdir()):
-        if not image_path.is_file() or image_path.suffix.lower() not in IMAGE_EXTENSIONS:
-            continue
-        try:
-            gray = _load_gray_image_from_path(image_path)
-            brightness_mean = float(np.mean(gray))
-            dark_ratio = float(np.mean(gray <= QUALITY_DARK_PIXEL_CUTOFF))
-            bright_ratio = float(np.mean(gray >= QUALITY_BRIGHT_PIXEL_CUTOFF))
-        except Exception as exc:
-            logger.warning("Skipping reference image %s due to read error: %s", image_path.name, exc)
-            continue
-
-        stem = image_path.stem.lower()
-        if stem.startswith("bright"):
-            bright_means.append(brightness_mean)
-            bright_pixel_ratios.append(bright_ratio)
-        elif stem.startswith("dark"):
-            dark_means.append(brightness_mean)
-            dark_pixel_ratios.append(dark_ratio)
-
-    if not bright_means or not dark_means or not bright_pixel_ratios or not dark_pixel_ratios:
-        logger.warning(
-            "Insufficient reference images in %s. Using default quality thresholds.",
-            DUMMY_PRESCRIPTIONS_DIR,
-        )
-        return {"source": "default", **DEFAULT_QUALITY_THRESHOLDS}
-
-    # Keep thresholds permissive to avoid false positives on normal documents.
-    too_dark_max_mean = min(60.0, max(dark_means) + 12.0)
-    too_bright_min_mean = max(242.0, float(np.mean(bright_means)) + 15.0)
-    dark_pixel_ratio_max = max(
-        DEFAULT_QUALITY_THRESHOLDS["dark_pixel_ratio_max"],
-        min(0.60, float(np.min(dark_pixel_ratios)) - 0.10),
-    )
-    bright_pixel_ratio_min = max(
-        DEFAULT_QUALITY_THRESHOLDS["bright_pixel_ratio_min"],
-        min(0.85, float(np.percentile(bright_pixel_ratios, 65))),
-    )
-
-    thresholds = {
-        "source": "dummy_prescriptions",
-        "too_dark_max_mean": round(too_dark_max_mean, 2),
-        "too_bright_min_mean": round(too_bright_min_mean, 2),
-        "dark_pixel_ratio_max": round(dark_pixel_ratio_max, 3),
-        "bright_pixel_ratio_min": round(bright_pixel_ratio_min, 3),
-        "dark_pixel_cutoff": QUALITY_DARK_PIXEL_CUTOFF,
-        "bright_pixel_cutoff": QUALITY_BRIGHT_PIXEL_CUTOFF,
-        "extreme_bright_ratio": QUALITY_EXTREME_BRIGHT_PIXEL_RATIO,
-        "references": {
-            "bright_count": len(bright_means),
-            "dark_count": len(dark_means),
-            "bright_min_mean": round(min(bright_means), 2),
-            "bright_avg_mean": round(float(np.mean(bright_means)), 2),
-            "bright_avg_pixel_ratio": round(float(np.mean(bright_pixel_ratios)), 3),
-            "dark_max_mean": round(max(dark_means), 2),
-            "dark_avg_mean": round(float(np.mean(dark_means)), 2),
-            "dark_avg_pixel_ratio": round(float(np.mean(dark_pixel_ratios)), 3),
-        },
-    }
-    logger.info("Quality thresholds calibrated from Dummy_prescriptions: %s", thresholds)
-    return thresholds
-
-
-QUALITY_THRESHOLDS = _calibrate_quality_thresholds()
-
-
-def assess_image_quality(image_data_url: str) -> dict[str, Any]:
-    try:
-        gray = _load_gray_image_from_data_url(image_data_url)
-        brightness_mean = float(np.mean(gray))
-        dark_pixel_ratio = float(np.mean(gray <= QUALITY_DARK_PIXEL_CUTOFF))
-        bright_pixel_ratio = float(np.mean(gray >= QUALITY_BRIGHT_PIXEL_CUTOFF))
-
-        if (
-            brightness_mean <= QUALITY_THRESHOLDS["too_dark_max_mean"]
-            or dark_pixel_ratio >= QUALITY_THRESHOLDS["dark_pixel_ratio_max"]
-        ):
-            return {
-                "status": "FAIL",
-                "classification": "too_dark",
-                "message": QUALITY_MESSAGE_TOO_DARK,
-                "metrics": {
-                    "brightness_mean": round(brightness_mean, 2),
-                    "dark_pixel_ratio": round(dark_pixel_ratio, 3),
-                    "bright_pixel_ratio": round(bright_pixel_ratio, 3),
-                },
-                "thresholds_used": QUALITY_THRESHOLDS,
-            }
-
-        is_too_bright = (
-            brightness_mean >= QUALITY_THRESHOLDS["too_bright_min_mean"]
-            and bright_pixel_ratio >= QUALITY_THRESHOLDS["bright_pixel_ratio_min"]
-        ) or bright_pixel_ratio >= QUALITY_EXTREME_BRIGHT_PIXEL_RATIO
-
-        if is_too_bright:
-            return {
-                "status": "FAIL",
-                "classification": "too_bright",
-                "message": QUALITY_MESSAGE_TOO_BRIGHT,
-                "metrics": {
-                    "brightness_mean": round(brightness_mean, 2),
-                    "dark_pixel_ratio": round(dark_pixel_ratio, 3),
-                    "bright_pixel_ratio": round(bright_pixel_ratio, 3),
-                },
-                "thresholds_used": QUALITY_THRESHOLDS,
-            }
-
-        return {
-            "status": "PASS",
-            "classification": "acceptable",
-            "message": "",
-            "metrics": {
-                "brightness_mean": round(brightness_mean, 2),
-                "dark_pixel_ratio": round(dark_pixel_ratio, 3),
-                "bright_pixel_ratio": round(bright_pixel_ratio, 3),
-            },
-            "thresholds_used": QUALITY_THRESHOLDS,
-        }
-    except Exception as exc:
-        logger.error("Image quality check failed: %s", exc)
-        return {
-            "status": "FAIL",
-            "classification": "invalid_image",
-            "message": "Unable to assess image quality. Please upload the image again.",
-            "metrics": {},
-            "thresholds_used": QUALITY_THRESHOLDS,
-        }
 
 
 def get_message_content(message: Any) -> str:
@@ -564,11 +369,7 @@ def get_message_content(message: Any) -> str:
     for item in message:
         if isinstance(item, str):
             parts.append(item)
-        elif (
-            isinstance(item, dict)
-            and item.get("type") == "text"
-            and isinstance(item.get("text"), str)
-        ):
+        elif isinstance(item, dict) and item.get("type") == "text" and isinstance(item.get("text"), str):
             parts.append(item["text"])
     return "\n".join(part for part in parts if part)
 
@@ -586,12 +387,12 @@ def parse_model_json(text: str) -> dict[str, Any]:
     cleaned = strip_code_block(text)
     try:
         return json.loads(cleaned)
-    except json.JSONDecodeError as exc:
+    except json.JSONDecodeError:
         first_brace = cleaned.find("{")
         last_brace = cleaned.rfind("}")
         if first_brace >= 0 and last_brace > first_brace:
             return json.loads(cleaned[first_brace : last_brace + 1])
-        raise HTTPException(status_code=502, detail="Model output was not valid JSON.") from exc
+        raise HTTPException(status_code=502, detail="Model output was not valid JSON.")
 
 
 def has_multilingual_text(value: Any) -> bool:
@@ -610,32 +411,25 @@ def build_prompt() -> str:
     return "\n".join(
         [
             "Extract prescription fields from the document image.",
-            "",
-            "Output requirements:",
-            "- Return ONLY a single valid JSON object (no markdown, no code fences, no extra text).",
-            "- Use exactly 'N/A' for any missing, unclear, or not confidently readable value (case-sensitive).",
-            "- Do NOT guess or infer. If a value is partially readable, include only the clearly readable part; otherwise 'N/A'.",
-            "",
-            "JSON schema (keys must match exactly):",
+            "Important rules:",
+            "1) Do not guess missing values. If a field is missing or unclear, return exactly 'N/A'.",
+            "2) Return only valid JSON with this exact schema:",
+            "3) Always return the date in DD-MM-YYYY format if any date is detected, convert to DD-MM-YYYY if needed.",
             "{",
             '  "patientName": "string",',
             '  "age": "string",',
             '  "sex": "string",',
+            '  "department": "string",',
             '  "date": "string",',
             '  "symptoms": "string",',
             '  "diagnosis": "string",',
             '  "medicines": ["string"]',
             "}",
-            "",
-            "Field rules:",
-            "- date: If a complete date is clearly present, output it as DD-MM-YYYY. If the full date is not clearly readable, return 'N/A'.",
-            "- medicines: Must be an array. Each array item should represent ONE medicine line (name + dose + frequency + duration if visible).",
-            "- medicines: Do not include diet/advice notes in medicines. If no medicine is readable, return ['N/A'].",
-            "",
-            "Language rules:",
-            "- Extract multilingual handwriting/printed text when visible.",
-            "- Translate non-English content into English in the output values.",
-            "- For names and medicine brands, keep the closest readable English transliteration (do not invent).",
+            "3) Extract multilingual handwriting and printed text when visible.",
+            "4) Translate non-English text into English in the output fields.",
+            "5) For names and medicine brands, keep the closest readable English transliteration if needed.",
+            "6) Keep date as seen in source. Do not invent.",
+            "7) medicines must be an array. If no medicine is readable, return ['N/A'].",
         ]
     )
 
@@ -643,9 +437,7 @@ def build_prompt() -> str:
 def call_openrouter(payload: dict[str, Any], log_label: str) -> dict[str, Any]:
     api_key = os.getenv("OPENROUTER_API_KEY")
     if not api_key:
-        raise HTTPException(
-            status_code=500, detail="OPENROUTER_API_KEY is not configured on the backend."
-        )
+        raise HTTPException(status_code=500, detail="OPENROUTER_API_KEY is not configured on the backend.")
 
     logger.info("OpenRouter request started | %s | model=%s", log_label, payload.get("model"))
     response = requests.post(
@@ -662,16 +454,10 @@ def call_openrouter(payload: dict[str, Any], log_label: str) -> dict[str, Any]:
     try:
         response_payload = response.json()
     except ValueError as exc:
-        raise HTTPException(
-            status_code=502, detail="OpenRouter returned a non-JSON response."
-        ) from exc
+        raise HTTPException(status_code=502, detail="OpenRouter returned a non-JSON response.") from exc
 
     if not response.ok:
-        api_message = (
-            response_payload.get("error", {}).get("message")
-            or response_payload.get("message")
-            or "OpenRouter request failed."
-        )
+        api_message = response_payload.get("error", {}).get("message") or response_payload.get("message") or "OpenRouter request failed."
         raise HTTPException(status_code=502, detail=api_message)
 
     logger.info("OpenRouter request completed | %s | status=%s", log_label, response.status_code)
@@ -694,9 +480,7 @@ def call_openrouter_for_extraction(file_data_url: str) -> dict[str, Any]:
         ],
     }
     response_payload = call_openrouter(payload, "extraction")
-    content = get_message_content(
-        response_payload.get("choices", [{}])[0].get("message", {}).get("content")
-    )
+    content = get_message_content(response_payload.get("choices", [{}])[0].get("message", {}).get("content"))
     if not content:
         raise HTTPException(status_code=502, detail="Model response was empty.")
     response = {"extracted": parse_model_json(content), "usage": response_payload.get("usage")}
@@ -730,23 +514,17 @@ def translate_extraction_to_english(extracted_json: dict[str, Any]) -> dict[str,
         ],
     }
     response_payload = call_openrouter(payload, "translation")
-    content = get_message_content(
-        response_payload.get("choices", [{}])[0].get("message", {}).get("content")
-    )
+    content = get_message_content(response_payload.get("choices", [{}])[0].get("message", {}).get("content"))
     return parse_model_json(content) if content else extracted_json
 
 
 def validate_and_normalize_data_url(file_data_url: str, file_type: str) -> str:
     if not file_data_url.startswith("data:"):
-        raise HTTPException(
-            status_code=400, detail="Invalid file payload. Please upload a valid image."
-        )
+        raise HTTPException(status_code=400, detail="Invalid file payload. Please upload a valid image.")
 
     header_match = re.match(r"^data:([^;]+);base64,", file_data_url, flags=re.IGNORECASE)
     if not header_match:
-        raise HTTPException(
-            status_code=400, detail="Unsupported file encoding. Please upload a JPG/PNG/WEBP image."
-        )
+        raise HTTPException(status_code=400, detail="Unsupported file encoding. Please upload a JPG/PNG/WEBP image.")
 
     mime_type = header_match.group(1).lower()
     declared_type = (file_type or "").lower()
@@ -754,13 +532,9 @@ def validate_and_normalize_data_url(file_data_url: str, file_type: str) -> str:
     normalized_mime = "image/jpeg" if mime_type == "image/jpg" else mime_type
 
     if normalized_mime not in ALLOWED_MIME_TYPES:
-        raise HTTPException(
-            status_code=400, detail="Only JPG, PNG, and WEBP images are supported for extraction."
-        )
+        raise HTTPException(status_code=400, detail="Only JPG, PNG, and WEBP images are supported for extraction.")
     if normalized_declared and normalized_declared != normalized_mime:
-        raise HTTPException(
-            status_code=400, detail="File type mismatch detected. Please re-upload a valid image."
-        )
+        raise HTTPException(status_code=400, detail="File type mismatch detected. Please re-upload a valid image.")
 
     return file_data_url
 
@@ -774,9 +548,7 @@ async def process_job(job: dict[str, Any], payload: DigitizePayload) -> None:
     try:
         mark_stage_running(job, 0)
         if not payload.fileName or not payload.fileType or not payload.fileDataUrl:
-            raise HTTPException(
-                status_code=400, detail="Missing file details for digitisation request."
-            )
+            raise HTTPException(status_code=400, detail="Missing file details for digitisation request.")
         mark_stage_completed(job, 0)
 
         mark_stage_running(job, 1)
@@ -784,52 +556,27 @@ async def process_job(job: dict[str, Any], payload: DigitizePayload) -> None:
         mark_stage_completed(job, 1)
 
         mark_stage_running(job, 2)
-        append_log(job, "Running image quality check before extraction")
-        quality_result = await asyncio.to_thread(assess_image_quality, normalized_data_url)
-
-        if quality_result["status"] == "FAIL":
-            feedback_msg = quality_result.get("message") or "Document quality check failed."
-            append_log(job, f"Image quality check failed: {feedback_msg}")
-            raise HTTPException(
-                status_code=400,
-                detail=feedback_msg,
-            )
-        append_log(job, "Image quality check passed: acceptable")
-
-        # Store quality metrics in job for analytics
-        job["image_quality_check"] = quality_result
+        extraction_output = await asyncio.to_thread(call_openrouter_for_extraction, normalized_data_url)
+        extracted_data = extraction_output.get("extracted") or {}
+        if has_multilingual_text(extracted_data):
+            extracted_data = await asyncio.to_thread(translate_extraction_to_english, extracted_data)
+            append_log(job, "Translated multilingual extracted fields to English")
         mark_stage_completed(job, 2)
 
         mark_stage_running(job, 3)
-        append_log(job, "Starting text extraction and analysis")
-        extraction_output = await asyncio.to_thread(
-            call_openrouter_for_extraction, normalized_data_url
-        )
-        extracted_data = extraction_output.get("extracted") or {}
-        append_log(job, "Text extraction completed, analyzing results")
-        if has_multilingual_text(extracted_data):
-            append_log(job, "Translating multilingual content to English")
-            extracted_data = await asyncio.to_thread(
-                translate_extraction_to_english, extracted_data
-            )
-            append_log(job, "Translation completed")
+        normalized = normalize_extraction(extracted_data)
         mark_stage_completed(job, 3)
 
         mark_stage_running(job, 4)
-        normalized = normalize_extraction(extracted_data)
-        mark_stage_completed(job, 4)
-
-        mark_stage_running(job, 5)
         job["result"] = {
             **normalized,
             "metadata": {
                 "model": MODEL_NAME,
                 "extractedAt": now_iso(),
-                "image_quality_check": quality_result,
             },
         }
         job["usage"] = extraction_output.get("usage")
-        mark_stage_completed(job, 5)
+        mark_stage_completed(job, 4)
 
         job["status"] = "completed"
         job["completedAt"] = now_iso()
@@ -899,9 +646,7 @@ async def health() -> dict[str, Any]:
 
 
 @app.post("/api/digitize", status_code=202)
-async def create_digitize_job(
-    payload: DigitizePayload, background_tasks: BackgroundTasks
-) -> dict[str, Any]:
+async def create_digitize_job(payload: DigitizePayload, background_tasks: BackgroundTasks) -> dict[str, Any]:
     file_name = sanitize_value(payload.fileName)
     file_type = sanitize_value(payload.fileType)
     if file_name == "N/A" or file_type == "N/A":
@@ -925,7 +670,7 @@ if __name__ == "__main__":
     import uvicorn
 
     uvicorn.run(
-        "app:app",
+        "backend.app:app",
         host="0.0.0.0",
         port=PORT,
         reload=True,

@@ -11,10 +11,7 @@ WIF/CIF documents may contain:
 - OCR-generated semi-structured text
 - Clinically critical information such as diagnosis, dosage, and patient age
 
-Because these files are medically sensitive, errors do not have equal impact:
-- Minor errors: name spelling mismatch
-- Major errors: incorrect medicine extraction
-- Critical errors: dosage or age misinterpretation
+Because these files are medically sensitive, extraction errors in clinically critical fields can directly affect downstream quality and safety.
 
 ## 2. Project Objectives 
 
@@ -23,7 +20,6 @@ This landscaping study will provide a decision-ready recommendation for the WIF 
 Objectives:
 - Compare candidate models and platforms for extraction quality, speed, and cost.
 - Measure token usage and latency using a common benchmark dataset.
-- Evaluate quality using severity-weighted error assessment.
 - Evaluate robustness under repeated runs and small architecture/prompt changes.
 - Run concordance testing (model-to-model and human-to-model).
 - Define automated and manual QC layers for production pipeline.
@@ -36,22 +32,7 @@ Expected outputs:
 
 ## 3. Evaluation Framework
 
-### 3.1 Performance Assessment Based on Error Severity
-Use severity-weighted scoring instead of plain accuracy.
-
-Suggested weighting:
-- Minor = 1
-- Major = 3
-- Critical = 7
-
-Severity score:
-- `Weighted Error = (1 x Minor) + (3 x Major) + (7 x Critical)`
-
-Interpretation:
-- Lower weighted error is better.
-- Critical-field misses should dominate model ranking.
-
-### 3.2 Robustness Assessment
+### 3.1 Robustness Assessment
 Since LLMs are probabilistic, test output stability.
 
 Robustness tests:
@@ -64,7 +45,7 @@ Metrics:
 - Variance in critical fields (dosage, age, diagnosis).
 - Instability/failure rate per 100 documents.
 
-### 3.3 Concordance Tests
+### 3.2 Concordance Tests
 Run agreement tests across systems and annotators.
 
 Required comparisons:
@@ -205,7 +186,7 @@ Required controls:
 ## 9. Final Recommendation Criteria
 
 The final stack selection should be based on all of the following:
-- Severity-aware quality performance
+- Quality performance
 - Robustness and consistency
 - Concordance with human annotations
 - Token efficiency and latency
@@ -227,6 +208,81 @@ Why this is suitable:
 - Hybrid routing allows quality on high-risk documents and lower cost on low-risk documents.
 - This balances clinical risk, throughput, and budget.
 
-## 10. Conclusion
+## 10. Current Application Scope (Implemented)
 
-This landscaping framework makes the WIF project objectives explicit, measurable, and deployment-ready. It ensures model selection is based on clinical risk, operational reliability, total cost, and compliance, not only generic accuracy.
+The current application is a role-based web platform with:
+- React frontend for upload, processing, review, dashboard, and reports screens.
+- FastAPI backend for asynchronous document digitisation jobs.
+- Gatekeeper-based sign-in and role mapping.
+- OpenRouter integration for multimodal extraction using `anthropic/claude-sonnet-4.6`.
+
+## 11. Current End-to-End Application Flow (Implemented)
+
+1. Access and authentication:
+- User lands on the role-based login screen.
+- Sign In and Sign Up redirect to Gatekeeper.
+- On successful auth, the app maps Gatekeeper role to app role and allows only permitted routes.
+
+2. Upload flow:
+- User uploads a CIF document from the Upload page.
+- Uploaded file preview is shown for images and PDFs.
+- Upload metadata is stored in session history for dashboard/report visibility.
+
+3. Processing flow:
+- Clicking `Start Processing` creates a backend job (`POST /api/digitize`).
+- Frontend polls job status (`GET /api/digitize/{jobId}`) and shows progress, ETA, and live logs.
+- Backend processing stages run in sequence:
+`Document Received -> Image Pre-processing -> Text Detection -> Field Extraction -> Structured Record Generation`.
+
+4. Extraction and normalization:
+- Backend validates data URL and MIME type.
+- Supported extraction formats are `image/jpeg`, `image/jpg`, `image/png`, and `image/webp`.
+- Model output is parsed into structured CIF fields.
+- If extracted values include multilingual text, backend translates values to English.
+- Backend normalizes fields and assigns:
+`fieldStatus` (`Verified` or `Review Required`) and `recordStatus`.
+
+5. Case review flow:
+- On job completion, user is redirected to Case Review.
+- User can compare original document and extracted fields.
+- User can edit extracted values in the case table.
+- `Mark Verified` updates all fields to `Verified`.
+- `Save Record` shows success message and redirects to dashboard.
+
+6. Dashboard and reports visibility:
+- Dashboard shows analytics widgets and charts (mock analytics dataset).
+- Recent uploaded documents are shown from session-stored upload history.
+- Reports page shows uploaded document list and supports clearing the list.
+
+## 12. Current User Roles and Access (Implemented)
+
+### 12.1 Front Line Worker
+- Allowed routes: `/upload`, `/processing`, `/case-review`
+- Typical usage: upload CIF, trigger processing, review and edit extracted fields.
+
+### 12.2 Medical Officer
+- Allowed route: `/dashboard`
+- Typical usage: view dashboard metrics and regional charts.
+
+### 12.3 Admin (User Analytics)
+- Allowed routes: `/dashboard`, `/upload`, `/processing`, `/case-review`, `/reports`
+- Typical usage: end-to-end operational access plus reports and validation visibility.
+
+## 13. Current Quality Check and Validation Behavior (Implemented)
+
+### 13.1 Backend validation and standardization
+- Missing/unclear values are normalized to `N/A`.
+- Date values are normalized to `DD-MM-YYYY` where possible.
+- Age, sex, medicine list, and text sanitization rules are applied before response.
+
+### 13.2 Frontend review validation
+- Case Review supports manual field edits and verification marking.
+- Validation Rules panel is visible for Admin (User Analytics role).
+- Rules currently check completeness, age range, date validity, sex format, medicine quality hints, and verification readiness.
+
+## 14. Current Data and Job Handling (Implemented)
+
+- Digitisation jobs are stored in backend memory during runtime.
+- Completed/failed jobs are auto-cleaned after one hour.
+- Upload history is stored in browser `sessionStorage`.
+- Case save in current UI updates session state and navigation flow; no persistent case database write is implemented in this version.

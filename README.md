@@ -1,17 +1,8 @@
-# CIF Digitisation Platform
+# Gadchiroli Digitisation tool for Malaria
 
-## Project Overview
+## Problem Statement
 
-The CIF Digitisation Platform is a role-based web application for converting paper Case Investigation Files (CIF) into structured digital records.
-
-It supports district health operations by:
-
-- capturing CIF uploads from field teams,
-- guiding records through a processing pipeline,
-- enabling case-data review and correction, and
-- presenting case analytics for monitoring and decision-making.
-
-The current demo workflow is aligned to district-level operations, with Gadchiroli shown as the active operational context.
+Digitise CIF docs generated at PHCs in Tribal regions of Gadchiroli.
 
 ## User Journey
 
@@ -78,10 +69,10 @@ From the project root:
 
 ```powershell
 cd backend
-python -m venv venv
-.\venv\Scripts\Activate.ps1
-pip install -r requirements.txt
-python main.py
+uv venv
+.\.venv\Scripts\Activate.ps1
+uv pip install -r requirements.txt
+uv run python main.py
 ```
 
 Backend will start at:
