@@ -7,20 +7,28 @@ const EMPTY_CASE_DATA = {
   patientName: "N/A",
   age: "N/A",
   sex: "N/A",
-  date: "N/A",
-  symptoms: "N/A",
-  diagnosis: "N/A",
-  medicines: "N/A",
+  locationVillage: "N/A",
+  testDate: "N/A",
+  testType: "N/A",
+  result: "N/A",
+  pathogen: "N/A",
+  treatment: "N/A",
+  temperature: "N/A",
+  hbLevel: "N/A",
 };
 
 const EMPTY_FIELD_STATUS = {
   patientName: "Review Required",
   age: "Review Required",
   sex: "Review Required",
-  date: "Review Required",
-  symptoms: "Review Required",
-  diagnosis: "Review Required",
-  medicines: "Review Required",
+  locationVillage: "Review Required",
+  testDate: "Review Required",
+  testType: "Review Required",
+  result: "Review Required",
+  pathogen: "Review Required",
+  treatment: "Review Required",
+  temperature: "Review Required",
+  hbLevel: "Review Required",
 };
 
 function loadStoredUploadHistory() {
@@ -94,20 +102,28 @@ export function CifProvider({ children }) {
       patientName: result?.caseData?.patientName || "N/A",
       age: result?.caseData?.age || "N/A",
       sex: result?.caseData?.sex || "N/A",
-      date: result?.caseData?.date || "N/A",
-      symptoms: result?.caseData?.symptoms || "N/A",
-      diagnosis: result?.caseData?.diagnosis || "N/A",
-      medicines: result?.caseData?.medicines || "N/A",
+      locationVillage: result?.caseData?.locationVillage || "N/A",
+      testDate: result?.caseData?.testDate || "N/A",
+      testType: result?.caseData?.testType || "N/A",
+      result: result?.caseData?.result || "N/A",
+      pathogen: result?.caseData?.pathogen || "N/A",
+      treatment: result?.caseData?.treatment || "N/A",
+      temperature: result?.caseData?.temperature || "N/A",
+      hbLevel: result?.caseData?.hbLevel || "N/A",
     };
 
     const nextFieldStatus = {
       patientName: result?.fieldStatus?.patientName || "Review Required",
       age: result?.fieldStatus?.age || "Review Required",
       sex: result?.fieldStatus?.sex || "Review Required",
-      date: result?.fieldStatus?.date || "Review Required",
-      symptoms: result?.fieldStatus?.symptoms || "Review Required",
-      diagnosis: result?.fieldStatus?.diagnosis || "Review Required",
-      medicines: result?.fieldStatus?.medicines || "Review Required",
+      locationVillage: result?.fieldStatus?.locationVillage || "Review Required",
+      testDate: result?.fieldStatus?.testDate || "Review Required",
+      testType: result?.fieldStatus?.testType || "Review Required",
+      result: result?.fieldStatus?.result || "Review Required",
+      pathogen: result?.fieldStatus?.pathogen || "Review Required",
+      treatment: result?.fieldStatus?.treatment || "Review Required",
+      temperature: result?.fieldStatus?.temperature || "Review Required",
+      hbLevel: result?.fieldStatus?.hbLevel || "Review Required",
     };
 
     setCaseData(nextCaseData);

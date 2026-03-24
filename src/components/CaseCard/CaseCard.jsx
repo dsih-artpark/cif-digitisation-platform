@@ -9,25 +9,15 @@ function SummaryRow({ label, value }) {
         <Typography color="text.secondary">{label}</Typography>
       </Box>
       <Box sx={{ width: { xs: "100%", sm: "65%" } }}>
-        <Typography fontWeight={600}>{value}</Typography>
+        <Typography fontWeight={600} sx={{ whiteSpace: "pre-line" }}>
+          {value}
+        </Typography>
       </Box>
     </Box>
   );
 }
 
 function CaseCard({ caseData, recordStatus }) {
-  const diagnosisValue = String(caseData.diagnosis || "N/A");
-  const formattedDiagnosis =
-    diagnosisValue.toLowerCase() === "n/a"
-      ? "N/A"
-      : diagnosisValue
-          .split(" ")
-          .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
-          .join(" ");
-  const medicines = (caseData.medicines || "")
-    .split("\n")
-    .map((item) => item.trim())
-    .filter((item) => item && item.toLowerCase() !== "n/a");
   const chipColor = recordStatus === "Verified" ? "success" : "warning";
 
   return (
@@ -37,31 +27,18 @@ function CaseCard({ caseData, recordStatus }) {
           Case Record Summary
         </Typography>
         <Stack spacing={1.2} mb={2}>
-                <SummaryRow label="Patient Name" value={caseData.patientName} />
-                <SummaryRow label="Age" value={caseData.age} />
-                <SummaryRow label="Sex" value={caseData.sex} />
-                <SummaryRow label="Date" value={caseData.date} />
-                <SummaryRow label="Symptoms" value={caseData.symptoms} />
-                <SummaryRow label="Diagnosis" value={formattedDiagnosis} />
+          <SummaryRow label="Patient Name" value={caseData.patientName} />
+          <SummaryRow label="Age" value={caseData.age} />
+          <SummaryRow label="Sex" value={caseData.sex} />
+          <SummaryRow label="Location/Village" value={caseData.locationVillage} />
+          <SummaryRow label="Test Date" value={caseData.testDate} />
+          <SummaryRow label="Test Type" value={caseData.testType} />
+          <SummaryRow label="Result" value={caseData.result} />
+          <SummaryRow label="Pathogen" value={caseData.pathogen} />
+          <SummaryRow label="Treatment" value={caseData.treatment} />
+          <SummaryRow label="Temperature" value={caseData.temperature} />
+          <SummaryRow label="HB Level" value={caseData.hbLevel} />
         </Stack>
-        <Box sx={{ mb: 2 }}>
-          <Typography color="text.secondary" mb={0.8}>
-            Prescribed Medicines
-          </Typography>
-          <Stack spacing={0.5}>
-            {medicines.length > 0 ? (
-              medicines.map((item, index) => (
-                <Typography key={`${item}-${index}`} fontWeight={600} variant="body2">
-                  - {item}
-                </Typography>
-              ))
-            ) : (
-              <Typography variant="body2" color="text.secondary">
-                No medicines extracted
-              </Typography>
-            )}
-          </Stack>
-        </Box>
         <Stack direction="row" alignItems="center" spacing={1} mb={2}>
           <Typography color="text.secondary">Status:</Typography>
           <Chip label={recordStatus} color={chipColor} size="small" />

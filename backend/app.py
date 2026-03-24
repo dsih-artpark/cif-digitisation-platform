@@ -263,6 +263,13 @@ def sanitize_value(value: Any) -> str:
     return text
 
 
+def first_available_value(raw_data: dict[str, Any], *keys: str) -> Any:
+    for key in keys:
+        if key in raw_data and raw_data.get(key) is not None:
+            return raw_data.get(key)
+    return None
+
+
 def normalize_age(value: Any) -> str:
     if value is None:
         return "N/A"
@@ -347,16 +354,35 @@ def normalize_medicines(medicines_value: Any) -> str:
     return "\n".join(cleaned_lines) if cleaned_lines else "N/A"
 
 
+def normalize_treatment(value: Any) -> str:
+    if isinstance(value, list):
+        normalized_lines = [sanitize_value(item) for item in value]
+        cleaned = [item for item in normalized_lines if item != "N/A"]
+        return "\n".join(cleaned) if cleaned else "N/A"
+    if isinstance(value, dict):
+        normalized_lines = [sanitize_value(item) for item in value.values()]
+        cleaned = [item for item in normalized_lines if item != "N/A"]
+        return "\n".join(cleaned) if cleaned else "N/A"
+    if isinstance(value, str):
+        lines = [sanitize_value(part) for part in re.split(r"\r?\n|;|,", value)]
+        cleaned = [item for item in lines if item != "N/A"]
+        return "\n".join(cleaned) if cleaned else "N/A"
+    return sanitize_value(value)
+
+
 def normalize_extraction(raw_data: dict[str, Any]) -> dict[str, Any]:
     case_data = {
-        "patientName": sanitize_value(raw_data.get("patientName")),
-        "age": normalize_age(raw_data.get("age")),
-        "sex": normalize_sex(raw_data.get("sex")),
-        "department": sanitize_value(raw_data.get("department")),
-        "date": normalize_date(raw_data.get("date")),
-        "symptoms": sanitize_value(raw_data.get("symptoms")),
-        "diagnosis": sanitize_value(raw_data.get("diagnosis")),
-        "medicines": normalize_medicines(raw_data.get("medicines")),
+        "patientName": sanitize_value(first_available_value(raw_data, "patientName", "patient_name", "name")),
+        "age": normalize_age(first_available_value(raw_data, "age")),
+        "sex": normalize_sex(first_available_value(raw_data, "sex", "gender")),
+        "locationVillage": sanitize_value(first_available_value(raw_data, "locationVillage", "location", "village")),
+        "testDate": normalize_date(first_available_value(raw_data, "testDate", "test_date", "date")),
+        "testType": sanitize_value(first_available_value(raw_data, "testType", "test_type")),
+        "result": sanitize_value(first_available_value(raw_data, "result", "testResult", "test_result")),
+        "pathogen": sanitize_value(first_available_value(raw_data, "pathogen", "species")),
+        "treatment": normalize_treatment(first_available_value(raw_data, "treatment", "medicines", "treatment_given")),
+        "temperature": sanitize_value(first_available_value(raw_data, "temperature")),
+        "hbLevel": sanitize_value(first_available_value(raw_data, "hbLevel", "hb", "hb_level")),
     }
     field_status = {key: ("Review Required" if value == "N/A" else "Verified") for key, value in case_data.items()}
     record_status = "Verified" if all(status == "Verified" for status in field_status.values()) else "Review Required"
@@ -414,7 +440,7 @@ def has_multilingual_text(value: Any) -> bool:
 def build_prompt() -> str:
     return "\n".join(
         [
-            "Extract prescription fields from the document image.",
+            "Extract malaria CIF fields from the document image.",
             "Important rules:",
             "1) Do not guess missing values. If a field is missing or unclear, return exactly 'N/A'.",
             "2) Return only valid JSON with this exact schema:",
@@ -423,17 +449,20 @@ def build_prompt() -> str:
             '  "patientName": "string",',
             '  "age": "string",',
             '  "sex": "string",',
-            '  "department": "string",',
-            '  "date": "string",',
-            '  "symptoms": "string",',
-            '  "diagnosis": "string",',
-            '  "medicines": ["string"]',
+            '  "locationVillage": "string",',
+            '  "testDate": "string",',
+            '  "testType": "string",',
+            '  "result": "string",',
+            '  "pathogen": "string",',
+            '  "treatment": "string",',
+            '  "temperature": "string",',
+            '  "hbLevel": "string"',
             "}",
             "3) Extract multilingual handwriting and printed text when visible.",
             "4) Translate non-English text into English in the output fields.",
-            "5) For names and medicine brands, keep the closest readable English transliteration if needed.",
+            "5) For names and medical terms, keep the closest readable English transliteration if needed.",
             "6) Keep date as seen in source. Do not invent.",
-            "7) medicines must be an array. If no medicine is readable, return ['N/A'].",
+            "7) Return only the fields in the schema above. No extra keys.",
         ]
     )
 

@@ -29,13 +29,6 @@ function SummaryItem({ label, value, status }) {
 }
 
 function DocumentCompare({ uploadedFile, previewUrl, caseData, fieldStatus }) {
-  const medicines = (caseData.medicines || "")
-    .split("\n")
-    .map((item) => item.trim())
-    .filter(Boolean);
-  const medicineDisplayLines =
-    medicines.length > 0 ? medicines : ["N/A"];
-
   return (
     <Card>
       <CardContent>
@@ -105,38 +98,33 @@ function DocumentCompare({ uploadedFile, previewUrl, caseData, fieldStatus }) {
                 <Divider />
                 <SummaryItem label="Sex" value={caseData.sex} status={fieldStatus.sex} />
                 <Divider />
-                <SummaryItem label="Date" value={caseData.date} status={fieldStatus.date} />
-                <Divider />
                 <SummaryItem
-                  label="Diagnosis"
-                  value={caseData.diagnosis}
-                  status={fieldStatus.diagnosis}
+                  label="Location/Village"
+                  value={caseData.locationVillage}
+                  status={fieldStatus.locationVillage}
                 />
                 <Divider />
-                <Stack spacing={0.6}>
-                  <Stack
-                    direction={{ xs: "column", sm: "row" }}
-                    justifyContent="space-between"
-                    alignItems={{ xs: "flex-start", sm: "center" }}
-                    spacing={{ xs: 0.5, sm: 0 }}
-                  >
-                    <Typography variant="body2" color="text.secondary">
-                      Prescribed Medicines
-                    </Typography>
-                    <Chip label={fieldStatus.medicines} size="small" color={statusColor(fieldStatus.medicines)} />
-                  </Stack>
-                  {medicineDisplayLines.length > 0 ? (
-                    medicineDisplayLines.map((medicine, index) => (
-                      <Typography key={`${medicine}-${index}`} variant="body2">
-                        - {medicine}
-                      </Typography>
-                    ))
-                  ) : (
-                    <Typography variant="body2" color="text.secondary">
-                      No medicines extracted
-                    </Typography>
-                  )}
-                </Stack>
+                <SummaryItem
+                  label="Test Date"
+                  value={caseData.testDate}
+                  status={fieldStatus.testDate}
+                />
+                <Divider />
+                <SummaryItem label="Test Type" value={caseData.testType} status={fieldStatus.testType} />
+                <Divider />
+                <SummaryItem label="Result" value={caseData.result} status={fieldStatus.result} />
+                <Divider />
+                <SummaryItem label="Pathogen" value={caseData.pathogen} status={fieldStatus.pathogen} />
+                <Divider />
+                <SummaryItem label="Treatment" value={caseData.treatment} status={fieldStatus.treatment} />
+                <Divider />
+                <SummaryItem
+                  label="Temperature"
+                  value={caseData.temperature}
+                  status={fieldStatus.temperature}
+                />
+                <Divider />
+                <SummaryItem label="HB Level" value={caseData.hbLevel} status={fieldStatus.hbLevel} />
               </Stack>
             </Box>
           </Grid>

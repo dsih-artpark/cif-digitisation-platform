@@ -61,30 +61,51 @@ function CaseReviewPage({ activeRole = "" }) {
       { key: "patientName", label: "Patient Name", value: caseData.patientName, status: fieldStatus.patientName },
       { key: "age", label: "Age", value: caseData.age, status: fieldStatus.age },
       { key: "sex", label: "Sex", value: caseData.sex, status: fieldStatus.sex },
-      { key: "date", label: "Date", value: caseData.date, status: fieldStatus.date },
-      { key: "symptoms", label: "Symptoms", value: caseData.symptoms, status: fieldStatus.symptoms },
-      { key: "diagnosis", label: "Diagnosis", value: caseData.diagnosis, status: fieldStatus.diagnosis },
       {
-        key: "medicines",
-        label: "Prescribed Medicines",
-        value: caseData.medicines,
-        status: fieldStatus.medicines,
+        key: "locationVillage",
+        label: "Location/Village",
+        value: caseData.locationVillage,
+        status: fieldStatus.locationVillage,
+      },
+      { key: "testDate", label: "Test Date", value: caseData.testDate, status: fieldStatus.testDate },
+      { key: "testType", label: "Test Type", value: caseData.testType, status: fieldStatus.testType },
+      { key: "result", label: "Result", value: caseData.result, status: fieldStatus.result },
+      { key: "pathogen", label: "Pathogen", value: caseData.pathogen, status: fieldStatus.pathogen },
+      {
+        key: "treatment",
+        label: "Treatment",
+        value: caseData.treatment,
+        status: fieldStatus.treatment,
         multiline: true,
       },
+      { key: "temperature", label: "Temperature", value: caseData.temperature, status: fieldStatus.temperature },
+      { key: "hbLevel", label: "HB Level", value: caseData.hbLevel, status: fieldStatus.hbLevel },
     ],
     [caseData, fieldStatus]
   );
 
   const validationRules = useMemo(() => {
-    const requiredKeys = ["patientName", "age", "sex", "date", "symptoms", "diagnosis", "medicines"];
+    const requiredKeys = [
+      "patientName",
+      "age",
+      "sex",
+      "locationVillage",
+      "testDate",
+      "testType",
+      "result",
+      "pathogen",
+      "treatment",
+      "temperature",
+      "hbLevel",
+    ];
     const missingFields = requiredKeys.filter((key) => isMissingValue(caseData[key]));
     const ageNumber = Number(caseData.age);
     const normalizedSex = String(caseData.sex || "").trim().toLowerCase();
-    const medicineLines = String(caseData.medicines || "")
+    const treatmentLines = String(caseData.treatment || "")
       .split("\n")
       .map((item) => item.trim())
       .filter((value) => value && !isMissingValue(value));
-    const hasDoseInfo = medicineLines.some((item) => /\b\d+\s?(mg|ml|mcg)\b/i.test(item));
+    const hasDoseInfo = treatmentLines.some((item) => /\b\d+\s?(mg|ml|mcg|gm)\b/i.test(item));
     const verifiedCount = Object.values(fieldStatus).filter((status) => status === "Verified").length;
     const validAge = !isMissingValue(caseData.age) && Number.isFinite(ageNumber) && ageNumber >= 0 && ageNumber <= 120;
     const validSex = ["male", "female", "other"].includes(normalizedSex);
@@ -108,8 +129,8 @@ function CaseReviewPage({ activeRole = "" }) {
       {
         id: "date-validation",
         title: "Case Date Validation",
-        status: isDateNotFuture(caseData.date) ? "pass" : "error",
-        message: isDateNotFuture(caseData.date)
+        status: isDateNotFuture(caseData.testDate) ? "pass" : "error",
+        message: isDateNotFuture(caseData.testDate)
           ? "Date format is valid and not in the future."
           : "Date must be in DD-MM-YYYY format and not be future dated.",
       },
@@ -120,20 +141,20 @@ function CaseReviewPage({ activeRole = "" }) {
         message: validSex ? "Sex field is captured in a supported format." : "Review sex field manually.",
       },
       {
-        id: "medicine-check",
-        title: "Medicine Extraction Quality",
-        status: medicineLines.length >= 2 && hasDoseInfo ? "pass" : "warning",
+        id: "treatment-check",
+        title: "Treatment Extraction Quality",
+        status: treatmentLines.length >= 1 && hasDoseInfo ? "pass" : "warning",
         message:
-          medicineLines.length >= 2 && hasDoseInfo
-            ? "Medicine list includes multiple entries with dosage markers."
-            : "Review medicines manually. Dosage/frequency may be incomplete.",
+          treatmentLines.length >= 1 && hasDoseInfo
+            ? "Treatment includes dosage markers."
+            : "Review treatment manually. Dosage/frequency may be incomplete.",
       },
       {
         id: "verification-readiness",
         title: "Verification Readiness",
-        status: verifiedCount >= 5 ? "pass" : "warning",
+        status: verifiedCount >= 8 ? "pass" : "warning",
         message:
-          verifiedCount >= 5
+          verifiedCount >= 8
             ? `${verifiedCount} fields are already marked as verified.`
             : `Only ${verifiedCount} fields are verified. Review before final approval.`,
       },
