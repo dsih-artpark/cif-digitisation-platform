@@ -10,7 +10,7 @@ import CaseReviewPage from "./pages/CaseReviewPage/CaseReviewPage";
 import Reports from "./pages/Reports/Reports";
 import LandingPage from "./pages/LandingPage/LandingPage";
 
-const GATEKEEPER_BASE_URL = "http://localhost:8000";
+const GATEKEEPER_BASE_URL = import.meta.env.VITE_GATEKEEPER_URL
 const GATEKEEPER_APP_SLUG = "cif";
 
 async function getSessionRole() {

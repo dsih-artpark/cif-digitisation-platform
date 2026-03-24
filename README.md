@@ -60,37 +60,62 @@ cd cif-digitisation-platform
 
 - **Node.js**: 18+ recommended (for the Vite + React frontend)
 - **Python**: 3.10+ recommended (for the FastAPI backend)
+- **uv**: required for Python dependency sync and backend run
 
-## Run Locally
+## Development Workflow
 
-### 1) Start the Backend API (FastAPI)
+### 1) One-Time Setup
 
 From the project root:
 
 ```powershell
+npm install
 cd backend
-uv venv
-.\.venv\Scripts\Activate.ps1
-uv pip install -r requirements.txt
+uv sync
+cd ..
+```
+
+### 2) Start Both Frontend + Backend (Single Command)
+
+From the project root:
+
+```powershell
+npm run dev:all
+```
+
+### 3) Open the Applications
+
+- Frontend UI: `http://localhost:5173`
+- Backend API: `http://localhost:8787`
+- Backend Swagger Docs: `http://localhost:8787/docs`
+
+### 4) Optional: Run Separately
+
+Terminal 1 (Backend):
+
+```powershell
+cd backend
 uv run python main.py
 ```
 
-Backend will start at:
-
-- Configured API host/port in your local environment
-
-### 2) Start the Frontend (Vite + React)
-
-Open a second terminal in the project root:
+Terminal 2 (Frontend):
 
 ```powershell
-npm install
 npm run dev
 ```
 
-Frontend will start at:
+### 5) Serve Frontend from FastAPI (Single Server Mode)
 
-- UI: `http://localhost:5173`
+From the project root:
+
+```powershell
+npm run build:full
+```
+
+Open:
+
+- Application (served by FastAPI): `http://localhost:8787`
+- Backend API docs: `http://localhost:8787/docs`
 
 ## Notes (Authentication / Gatekeeper)
 

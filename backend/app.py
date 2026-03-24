@@ -15,6 +15,7 @@ import requests
 from dotenv import load_dotenv
 from fastapi import BackgroundTasks, FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
 load_dotenv()
@@ -22,6 +23,9 @@ load_dotenv()
 PORT = int(os.getenv("API_PORT", "8787"))
 OPENROUTER_BASE_URL = os.getenv("OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1")
 MODEL_NAME = "anthropic/claude-sonnet-4.6"
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+FRONTEND_DIST_DIR = PROJECT_ROOT / "dist"
+FRONTEND_INDEX_FILE = FRONTEND_DIST_DIR / "index.html"
 
 STAGE_DEFINITIONS = [
     {
@@ -664,6 +668,35 @@ async def get_digitize_job(job_id: str) -> dict[str, Any]:
     if not job:
         raise HTTPException(status_code=404, detail="Job not found.")
     return {"job": build_snapshot(job)}
+
+
+@app.get("/", include_in_schema=False)
+async def serve_frontend_root() -> FileResponse:
+    if not FRONTEND_INDEX_FILE.exists():
+        raise HTTPException(status_code=404, detail="Frontend build not found. Run `npm run build` first.")
+    return FileResponse(FRONTEND_INDEX_FILE)
+
+
+@app.get("/{full_path:path}", include_in_schema=False)
+async def serve_frontend(full_path: str) -> FileResponse:
+    if full_path == "api" or full_path.startswith("api/"):
+        raise HTTPException(status_code=404, detail="Not found.")
+
+    dist_root = FRONTEND_DIST_DIR.resolve()
+    requested_path = (FRONTEND_DIST_DIR / full_path).resolve()
+
+    try:
+        requested_path.relative_to(dist_root)
+    except ValueError:
+        raise HTTPException(status_code=404, detail="Not found.")
+
+    if requested_path.is_file():
+        return FileResponse(requested_path)
+
+    if FRONTEND_INDEX_FILE.exists():
+        return FileResponse(FRONTEND_INDEX_FILE)
+
+    raise HTTPException(status_code=404, detail="Frontend build not found. Run `npm run build` first.")
 
 
 if __name__ == "__main__":
