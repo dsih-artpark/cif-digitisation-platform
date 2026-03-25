@@ -1,0 +1,17 @@
+[Unit]
+Description=CIF Digitisation App
+After=network.target
+
+
+[Service]
+Type=simple
+User=ubuntu
+WorkingDirectory=/home/ubuntu/cif-digitisation-platform/backend
+EnvironmentFile=/home/ubuntu/cif-digitisation-platform/.env
+ExecStart=/home/ubuntu/cif-digitisation-platform/backend/.venv/bin/python -m uvicorn app:app --host 0.0.0.0 --port 8787
+Restart=always
+RestartSec=5
+
+
+[Install]
+WantedBy=multi-user.target
