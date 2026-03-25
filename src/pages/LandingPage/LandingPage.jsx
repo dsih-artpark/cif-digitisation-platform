@@ -158,7 +158,7 @@ function LandingPage({ authError = "" }) {
                     fontWeight: 800,
                   }}
                 >
-                  CIF Digitisation System
+                  CIF Prescription Digitisation System
                 </Typography>
                 <Typography variant="body1" color="text.secondary" sx={{ lineHeight: 1.7 }}>
                   Structured case investigation digitisation for district operations, record verification, and
