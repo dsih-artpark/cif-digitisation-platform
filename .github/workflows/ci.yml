@@ -1,0 +1,47 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    env:
+      OPENROUTER_API_KEY: ${ { secrets.OPENROUTER_API_KEY } }
+      OPENROUTER_BASE_URL: ${ { vars.OPENROUTER_BASE_URL } }
+      # we can use direct assignment here since these values are not secrets and are the same for all environments
+      VITE_GATEKEEPER_URL: https://auth.artpark.ai
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v5
+
+      - name: Install frontend dependencies
+        run: npm ci
+
+      - name: Install backend dependencies
+        run: uv sync --directory backend --frozen
+
+      - name: Build frontend
+        run: npm run build
+
+      - name: Smoke test backend import
+        run: uv run --directory backend python -c "import app; print(app.app.title)"
