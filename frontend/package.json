@@ -4,12 +4,12 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "api": "uv run python -m uvicorn backend.app:app --host 0.0.0.0 --port 8787 --reload --access-log",
+    "api": "uv run --project .. python -m uvicorn backend.app:app --host 0.0.0.0 --port 8787 --reload --access-log",
     "dev": "vite",
     "dev:frontend": "vite",
-    "dev:backend": "uv run python -m backend.main",
+    "dev:backend": "uv run --project .. python -m backend.main",
     "dev:all": "node scripts/dev-all.mjs",
-    "build:full": "npm run build && uv run python -m backend.main",
+    "build:full": "npm run build && uv run --project .. python -m backend.main",
     "build": "vite build",
     "preview": "vite preview"
   },

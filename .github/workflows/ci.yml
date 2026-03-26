@@ -1,18 +1,20 @@
-name: CI
+name: Deploy To Lightsail
 
 on:
   push:
     branches:
       - main
-  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: lightsail-deploy
+  cancel-in-progress: true
 
 jobs:
-  build:
+  deploy:
     runs-on: ubuntu-latest
-
     env:
-      OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
-      OPENROUTER_BASE_URL: ${{ vars.OPENROUTER_BASE_URL }}
+      VITE_API_BASE_URL: ${{ vars.VITE_API_BASE_URL }}
 
     steps:
       - name: Check out repository
@@ -23,23 +25,59 @@ jobs:
         with:
           node-version: 20
           cache: npm
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-
-      - name: Set up uv
-        uses: astral-sh/setup-uv@v5
+          cache-dependency-path: frontend/package-lock.json
 
       - name: Install frontend dependencies
+        working-directory: frontend
         run: npm ci
 
-      - name: Install backend dependencies
-        run: uv sync --frozen
-
       - name: Build frontend
+        working-directory: frontend
         run: npm run build
 
-      - name: Smoke test backend import
-        run: uv run python -c "import backend.app; print(backend.app.app.title)"
+      - name: Create deployment bundle
+        run: |
+          tar -czf deploy.tar.gz \
+            --exclude=.git \
+            --exclude=.github \
+            --exclude=node_modules \
+            --exclude=frontend/node_modules \
+            --exclude=.venv \
+            --exclude=backend/.venv \
+            --exclude=.vite \
+            --exclude=.ruff_cache \
+            --exclude=__pycache__ \
+            .
+
+      - name: Upload deployment bundle to Lightsail
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.LIGHTSAIL_HOST }}
+          username: ${{ secrets.LIGHTSAIL_USER }}
+          key: ${{ secrets.LIGHTSAIL_SSH_KEY }}
+          port: ${{ secrets.LIGHTSAIL_PORT || 22 }}
+          source: deploy.tar.gz
+          target: /tmp
+
+      - name: Deploy application on Lightsail over SSH
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.LIGHTSAIL_HOST }}
+          username: ${{ secrets.LIGHTSAIL_USER }}
+          key: ${{ secrets.LIGHTSAIL_SSH_KEY }}
+          port: ${{ secrets.LIGHTSAIL_PORT || 22 }}
+          script: |
+            set -euo pipefail
+            export PATH="$HOME/.local/bin:$PATH"
+            APP_DIR="$HOME/cif-digitisation-platform"
+            STAGE_DIR="$HOME/cif-digitisation-platform-staging"
+            BUNDLE_PATH="/tmp/deploy.tar.gz"
+
+            rm -rf "$STAGE_DIR"
+            mkdir -p "$STAGE_DIR"
+            tar -xzf "$BUNDLE_PATH" -C "$STAGE_DIR"
+
+            bash "$STAGE_DIR/scripts/deploy.sh" "$STAGE_DIR" "$APP_DIR"
+
+            rm -rf "$STAGE_DIR"
+            rm -f "$BUNDLE_PATH"
