@@ -120,7 +120,7 @@ function LandingPage({ onAccessSelect = () => {} }) {
                     fontWeight: 800,
                   }}
                 >
-                  CIF Prescription Digitisation System
+                  CIF Digitisation System
                 </Typography>
                 <Typography variant="body1" color="text.secondary" sx={{ lineHeight: 1.7 }}>
                   Structured case investigation digitisation for district operations, record verification, and

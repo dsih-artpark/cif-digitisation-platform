@@ -41,7 +41,7 @@ function Navbar({ activeRole, onSignOut }) {
               lineHeight: 1.2,
             }}
           >
-            CIF Prescription Digitisation System
+            CIF Digitisation System
           </Typography>
           <Typography
             variant="body2"
