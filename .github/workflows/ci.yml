@@ -37,9 +37,10 @@ jobs:
 
       - name: Create deployment bundle
         run: |
-          tar -czf deploy.tar.gz \
+          tar -czf /tmp/deploy.tar.gz \
             --exclude=.git \
             --exclude=.github \
+            --exclude=deploy.tar.gz \
             --exclude=node_modules \
             --exclude=frontend/node_modules \
             --exclude=.venv \
@@ -56,7 +57,7 @@ jobs:
           username: ${{ secrets.LIGHTSAIL_USER }}
           key: ${{ secrets.LIGHTSAIL_SSH_KEY }}
           port: ${{ secrets.LIGHTSAIL_PORT || 22 }}
-          source: deploy.tar.gz
+          source: /tmp/deploy.tar.gz
           target: /tmp
 
       - name: Deploy application on Lightsail over SSH
