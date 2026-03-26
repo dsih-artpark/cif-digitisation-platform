@@ -4,6 +4,7 @@ Local development setup for the CIF digitisation demo app with a split root layo
 
 - `frontend/`
 - `backend/`
+- other files
 
 ## Stack
 
