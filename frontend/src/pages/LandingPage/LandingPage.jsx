@@ -259,11 +259,6 @@ function LandingPage({ authMode = "demo", authMessage = "", onAccessSelect = () 
             <Typography variant="body2" color="text.secondary">
               Choose <strong>Sign In</strong> or <strong>Sign Up</strong> to continue.
             </Typography>
-            {authMode === "gatekeeper" ? (
-              <Typography variant="body2" color="text.secondary">
-                You will continue through Gatekeeper email verification before entering the selected CIF workspace.
-              </Typography>
-            ) : null}
           </Stack>
         </DialogContent>
         <DialogActions sx={{ px: 2.5, pb: 2 }}>
