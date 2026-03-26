@@ -2,6 +2,7 @@ import ArrowForwardRoundedIcon from "@mui/icons-material/ArrowForwardRounded";
 import MedicalServicesRoundedIcon from "@mui/icons-material/MedicalServicesRounded";
 import UploadFileRoundedIcon from "@mui/icons-material/UploadFileRounded";
 import {
+  Alert,
   Box,
   Button,
   Card,
@@ -50,7 +51,7 @@ const adminAccess = {
   route: "/dashboard",
 };
 
-function LandingPage({ onAccessSelect = () => {} }) {
+function LandingPage({ authMode = "demo", authMessage = "", onAccessSelect = () => {}, onGatekeeperLogin = () => {} }) {
   const [authDialogOpen, setAuthDialogOpen] = useState(false);
   const [selectedAccess, setSelectedAccess] = useState(null);
 
@@ -61,8 +62,12 @@ function LandingPage({ onAccessSelect = () => {} }) {
 
   const handleContinue = () => {
     if (!selectedAccess) return;
-    onAccessSelect(selectedAccess.role);
     setAuthDialogOpen(false);
+    if (authMode === "gatekeeper") {
+      onGatekeeperLogin(selectedAccess.role);
+      return;
+    }
+    onAccessSelect(selectedAccess.role);
   };
 
   return (
@@ -86,6 +91,7 @@ function LandingPage({ onAccessSelect = () => {} }) {
       />
 
       <Stack spacing={2.5} sx={{ position: "relative", zIndex: 1 }}>
+        {authMessage ? <Alert severity="error">{authMessage}</Alert> : null}
         <Card
           sx={{
             borderRadius: 4,
@@ -253,6 +259,11 @@ function LandingPage({ onAccessSelect = () => {} }) {
             <Typography variant="body2" color="text.secondary">
               Choose <strong>Sign In</strong> or <strong>Sign Up</strong> to continue.
             </Typography>
+            {authMode === "gatekeeper" ? (
+              <Typography variant="body2" color="text.secondary">
+                You will continue through Gatekeeper email verification before entering the selected CIF workspace.
+              </Typography>
+            ) : null}
           </Stack>
         </DialogContent>
         <DialogActions sx={{ px: 2.5, pb: 2 }}>

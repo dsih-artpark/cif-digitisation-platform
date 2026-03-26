@@ -49,6 +49,8 @@ API_PORT=8787
 OPENROUTER_BASE_URL=https://openrouter.ai/api/v1
 OPENROUTER_API_KEY=your_openrouter_api_key_here
 VITE_API_BASE_URL=http://localhost:8787
+GATEKEEPER_AUTH_ENABLED=false
+GATEKEEPER_AUTH_URL=https://auth.artpark.ai
 ```
 
 ## Install Dependencies
@@ -73,6 +75,8 @@ npm run dev
 uv sync --directory backend
 uv run python -m backend.main
 
+Keep `GATEKEEPER_AUTH_ENABLED=false` for localhost/demo mode.
+
 
 
 ## Run on Server 
@@ -83,3 +87,5 @@ cd ..
 
 uv sync --directory backend
 uv run python -m backend.main
+
+Set `GATEKEEPER_AUTH_ENABLED=true` on the server when the app is behind Gatekeeper/nginx headers.

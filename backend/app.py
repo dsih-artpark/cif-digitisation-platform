@@ -7,18 +7,19 @@ import os
 import re
 import shutil
 import subprocess
-from threading import Lock
 import time
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
+from threading import Lock
 from typing import Any
+from urllib.parse import urlencode
 from uuid import uuid4
 
 import requests
 from dotenv import load_dotenv
 from fastapi import BackgroundTasks, FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, RedirectResponse
 from pydantic import BaseModel
 
 load_dotenv()
@@ -33,6 +34,13 @@ FRONTEND_PUBLIC_DIR = FRONTEND_DIR / "public"
 FRONTEND_DIST_DIR = PROJECT_ROOT / "dist"
 FRONTEND_INDEX_FILE = FRONTEND_DIST_DIR / "index.html"
 FRONTEND_BUILD_LOCK = Lock()
+GATEKEEPER_AUTH_ENABLED = os.getenv("GATEKEEPER_AUTH_ENABLED", "false").strip().lower() in {
+    "1",
+    "true",
+    "yes",
+    "on",
+}
+GATEKEEPER_AUTH_URL = os.getenv("GATEKEEPER_AUTH_URL", "https://auth.artpark.ai").rstrip("/")
 
 STAGE_DEFINITIONS = [
     {
@@ -110,8 +118,60 @@ class DigitizePayload(BaseModel):
     fileDataUrl: str
 
 
+def build_external_base_url(request: Request) -> str:
+    forwarded_proto = request.headers.get("x-forwarded-proto")
+    scheme = forwarded_proto or request.url.scheme
+    host = request.headers.get("host") or request.url.netloc
+    return f"{scheme}://{host}"
+
+
+def requested_role_to_gatekeeper_role(requested_role: str | None) -> str | None:
+    mapping = {
+        "user_analytics": "admin",
+        "front_line_worker": "flw",
+        "medical_officer": "mo",
+    }
+    return mapping.get((requested_role or "").strip().lower())
+
+
+def granted_role_allows_requested_role(
+    granted_role: str | None, requested_role: str | None
+) -> bool:
+    granted = (granted_role or "").strip().lower()
+    requested = requested_role_to_gatekeeper_role(requested_role)
+    if not granted or not requested:
+        return False
+    if granted == "admin":
+        return True
+    return granted == requested
+
+
+def read_gatekeeper_headers(request: Request) -> dict[str, str]:
+    return {
+        "email": request.headers.get("x-auth-user", "").strip(),
+        "role": request.headers.get("x-auth-role", "").strip().lower(),
+        "name": request.headers.get("x-auth-name", "").strip(),
+    }
+
+
+def build_gatekeeper_signin_url(request: Request, requested_role: str) -> str:
+    base_url = build_external_base_url(request)
+    callback_url = f"{base_url}/auth/callback?requested_role={requested_role}"
+    query = urlencode({"redirect": callback_url})
+    return f"{GATEKEEPER_AUTH_URL}/signin?{query}"
+
+
+def build_gatekeeper_signout_url(request: Request) -> str:
+    base_url = build_external_base_url(request)
+    post_signout_redirect = (
+        f"{GATEKEEPER_AUTH_URL}/signin?{urlencode({'redirect': f'{base_url}/'})}"
+    )
+    query = urlencode({"redirect": post_signout_redirect})
+    return f"{GATEKEEPER_AUTH_URL}/signout?{query}"
+
+
 def now_iso() -> str:
-    return datetime.now(timezone.utc).isoformat()
+    return datetime.now(UTC).isoformat()
 
 
 def latest_modified_time(*paths: Path) -> float:
@@ -169,9 +229,13 @@ def ensure_frontend_build() -> None:
 
         npm_command = get_npm_command()
         if not npm_command:
-            raise RuntimeError("Frontend source is newer than dist, but npm is not available on PATH.")
+            raise RuntimeError(
+                "Frontend source is newer than dist, but npm is not available on PATH."
+            )
 
-        logger.info("Frontend source changed. Rebuilding the frontend bundle before serving requests.")
+        logger.info(
+            "Frontend source changed. Rebuilding the frontend bundle before serving requests."
+        )
         try:
             subprocess.run(
                 [npm_command, "run", "build"],
@@ -182,7 +246,9 @@ def ensure_frontend_build() -> None:
             )
         except subprocess.CalledProcessError as exc:
             logger.error("Frontend build failed.\nstdout:\n%s\nstderr:\n%s", exc.stdout, exc.stderr)
-            raise RuntimeError("Frontend build failed. Fix the Vite build and refresh the page.") from exc
+            raise RuntimeError(
+                "Frontend build failed. Fix the Vite build and refresh the page."
+            ) from exc
 
         logger.info("Frontend bundle is up to date.")
 
@@ -291,7 +357,11 @@ def build_snapshot(job: dict[str, Any]) -> dict[str, Any]:
     running_index = get_running_stage_index(job)
     running_progress = stages[running_index]["progress"] / 100 if running_index >= 0 else 0
     completed_equivalent = completed_stages + running_progress
-    progress = 100 if job["status"] == "completed" else min(99, round((completed_equivalent / max(total_stages, 1)) * 100))
+    progress = (
+        100
+        if job["status"] == "completed"
+        else min(99, round((completed_equivalent / max(total_stages, 1)) * 100))
+    )
 
     eta_ms = 0
     if job["status"] not in {"completed", "failed"}:
@@ -307,7 +377,9 @@ def build_snapshot(job: dict[str, Any]) -> dict[str, Any]:
         average_stage_ms = (
             round(sum(completed_durations) / len(completed_durations))
             if completed_durations
-            else round(sum(stage["expected_ms"] for stage in STAGE_DEFINITIONS) / len(STAGE_DEFINITIONS))
+            else round(
+                sum(stage["expected_ms"] for stage in STAGE_DEFINITIONS) / len(STAGE_DEFINITIONS)
+            )
         )
         remaining_stages = max(total_stages - completed_equivalent, 0)
         eta_ms = round(average_stage_ms * remaining_stages)
@@ -418,7 +490,9 @@ def normalize_medicines(medicines_value: Any) -> str:
                 if all(part == "N/A" for part in [name, dose, frequency, duration]):
                     lines.append("N/A")
                     continue
-                lines.append(" - ".join(part for part in [name, dose, frequency, duration] if part != "N/A"))
+                lines.append(
+                    " - ".join(part for part in [name, dose, frequency, duration] if part != "N/A")
+                )
     elif isinstance(medicines_value, str):
         lines = [sanitize_value(part) for part in re.split(r"\r?\n|;|,", medicines_value)]
 
@@ -452,20 +526,37 @@ def normalize_treatment(value: Any) -> str:
 
 def normalize_extraction(raw_data: dict[str, Any]) -> dict[str, Any]:
     case_data = {
-        "patientName": sanitize_value(first_available_value(raw_data, "patientName", "patient_name", "name")),
+        "patientName": sanitize_value(
+            first_available_value(raw_data, "patientName", "patient_name", "name")
+        ),
         "age": normalize_age(first_available_value(raw_data, "age")),
         "sex": normalize_sex(first_available_value(raw_data, "sex", "gender")),
-        "locationVillage": sanitize_value(first_available_value(raw_data, "locationVillage", "location", "village")),
-        "testDate": normalize_date(first_available_value(raw_data, "testDate", "test_date", "date")),
+        "locationVillage": sanitize_value(
+            first_available_value(raw_data, "locationVillage", "location", "village")
+        ),
+        "testDate": normalize_date(
+            first_available_value(raw_data, "testDate", "test_date", "date")
+        ),
         "testType": sanitize_value(first_available_value(raw_data, "testType", "test_type")),
-        "result": sanitize_value(first_available_value(raw_data, "result", "testResult", "test_result")),
+        "result": sanitize_value(
+            first_available_value(raw_data, "result", "testResult", "test_result")
+        ),
         "pathogen": sanitize_value(first_available_value(raw_data, "pathogen", "species")),
-        "treatment": normalize_treatment(first_available_value(raw_data, "treatment", "medicines", "treatment_given")),
+        "treatment": normalize_treatment(
+            first_available_value(raw_data, "treatment", "medicines", "treatment_given")
+        ),
         "temperature": sanitize_value(first_available_value(raw_data, "temperature")),
         "hbLevel": sanitize_value(first_available_value(raw_data, "hbLevel", "hb", "hb_level")),
     }
-    field_status = {key: ("Review Required" if value == "N/A" else "Verified") for key, value in case_data.items()}
-    record_status = "Verified" if all(status == "Verified" for status in field_status.values()) else "Review Required"
+    field_status = {
+        key: ("Review Required" if value == "N/A" else "Verified")
+        for key, value in case_data.items()
+    }
+    record_status = (
+        "Verified"
+        if all(status == "Verified" for status in field_status.values())
+        else "Review Required"
+    )
     return {"caseData": case_data, "fieldStatus": field_status, "recordStatus": record_status}
 
 
@@ -479,7 +570,11 @@ def get_message_content(message: Any) -> str:
     for item in message:
         if isinstance(item, str):
             parts.append(item)
-        elif isinstance(item, dict) and item.get("type") == "text" and isinstance(item.get("text"), str):
+        elif (
+            isinstance(item, dict)
+            and item.get("type") == "text"
+            and isinstance(item.get("text"), str)
+        ):
             parts.append(item["text"])
     return "\n".join(part for part in parts if part)
 
@@ -502,7 +597,7 @@ def parse_model_json(text: str) -> dict[str, Any]:
         last_brace = cleaned.rfind("}")
         if first_brace >= 0 and last_brace > first_brace:
             return json.loads(cleaned[first_brace : last_brace + 1])
-        raise HTTPException(status_code=502, detail="Model output was not valid JSON.")
+        raise HTTPException(status_code=502, detail="Model output was not valid JSON.") from None
 
 
 def has_multilingual_text(value: Any) -> bool:
@@ -550,7 +645,9 @@ def build_prompt() -> str:
 def call_openrouter(payload: dict[str, Any], log_label: str) -> dict[str, Any]:
     api_key = os.getenv("OPENROUTER_API_KEY")
     if not api_key:
-        raise HTTPException(status_code=500, detail="OPENROUTER_API_KEY is not configured on the backend.")
+        raise HTTPException(
+            status_code=500, detail="OPENROUTER_API_KEY is not configured on the backend."
+        )
 
     logger.info("OpenRouter request started | %s | model=%s", log_label, payload.get("model"))
     response = requests.post(
@@ -567,10 +664,16 @@ def call_openrouter(payload: dict[str, Any], log_label: str) -> dict[str, Any]:
     try:
         response_payload = response.json()
     except ValueError as exc:
-        raise HTTPException(status_code=502, detail="OpenRouter returned a non-JSON response.") from exc
+        raise HTTPException(
+            status_code=502, detail="OpenRouter returned a non-JSON response."
+        ) from exc
 
     if not response.ok:
-        api_message = response_payload.get("error", {}).get("message") or response_payload.get("message") or "OpenRouter request failed."
+        api_message = (
+            response_payload.get("error", {}).get("message")
+            or response_payload.get("message")
+            or "OpenRouter request failed."
+        )
         raise HTTPException(status_code=502, detail=api_message)
 
     logger.info("OpenRouter request completed | %s | status=%s", log_label, response.status_code)
@@ -593,7 +696,9 @@ def call_openrouter_for_extraction(file_data_url: str) -> dict[str, Any]:
         ],
     }
     response_payload = call_openrouter(payload, "extraction")
-    content = get_message_content(response_payload.get("choices", [{}])[0].get("message", {}).get("content"))
+    content = get_message_content(
+        response_payload.get("choices", [{}])[0].get("message", {}).get("content")
+    )
     if not content:
         raise HTTPException(status_code=502, detail="Model response was empty.")
     response = {"extracted": parse_model_json(content), "usage": response_payload.get("usage")}
@@ -627,17 +732,23 @@ def translate_extraction_to_english(extracted_json: dict[str, Any]) -> dict[str,
         ],
     }
     response_payload = call_openrouter(payload, "translation")
-    content = get_message_content(response_payload.get("choices", [{}])[0].get("message", {}).get("content"))
+    content = get_message_content(
+        response_payload.get("choices", [{}])[0].get("message", {}).get("content")
+    )
     return parse_model_json(content) if content else extracted_json
 
 
 def validate_and_normalize_data_url(file_data_url: str, file_type: str) -> str:
     if not file_data_url.startswith("data:"):
-        raise HTTPException(status_code=400, detail="Invalid file payload. Please upload a valid image.")
+        raise HTTPException(
+            status_code=400, detail="Invalid file payload. Please upload a valid image."
+        )
 
     header_match = re.match(r"^data:([^;]+);base64,", file_data_url, flags=re.IGNORECASE)
     if not header_match:
-        raise HTTPException(status_code=400, detail="Unsupported file encoding. Please upload a JPG/PNG/WEBP image.")
+        raise HTTPException(
+            status_code=400, detail="Unsupported file encoding. Please upload a JPG/PNG/WEBP image."
+        )
 
     mime_type = header_match.group(1).lower()
     declared_type = (file_type or "").lower()
@@ -645,9 +756,13 @@ def validate_and_normalize_data_url(file_data_url: str, file_type: str) -> str:
     normalized_mime = "image/jpeg" if mime_type == "image/jpg" else mime_type
 
     if normalized_mime not in ALLOWED_MIME_TYPES:
-        raise HTTPException(status_code=400, detail="Only JPG, PNG, and WEBP images are supported for extraction.")
+        raise HTTPException(
+            status_code=400, detail="Only JPG, PNG, and WEBP images are supported for extraction."
+        )
     if normalized_declared and normalized_declared != normalized_mime:
-        raise HTTPException(status_code=400, detail="File type mismatch detected. Please re-upload a valid image.")
+        raise HTTPException(
+            status_code=400, detail="File type mismatch detected. Please re-upload a valid image."
+        )
 
     return file_data_url
 
@@ -661,7 +776,9 @@ async def process_job(job: dict[str, Any], payload: DigitizePayload) -> None:
     try:
         mark_stage_running(job, 0)
         if not payload.fileName or not payload.fileType or not payload.fileDataUrl:
-            raise HTTPException(status_code=400, detail="Missing file details for digitisation request.")
+            raise HTTPException(
+                status_code=400, detail="Missing file details for digitisation request."
+            )
         mark_stage_completed(job, 0)
 
         mark_stage_running(job, 1)
@@ -669,10 +786,14 @@ async def process_job(job: dict[str, Any], payload: DigitizePayload) -> None:
         mark_stage_completed(job, 1)
 
         mark_stage_running(job, 2)
-        extraction_output = await asyncio.to_thread(call_openrouter_for_extraction, normalized_data_url)
+        extraction_output = await asyncio.to_thread(
+            call_openrouter_for_extraction, normalized_data_url
+        )
         extracted_data = extraction_output.get("extracted") or {}
         if has_multilingual_text(extracted_data):
-            extracted_data = await asyncio.to_thread(translate_extraction_to_english, extracted_data)
+            extracted_data = await asyncio.to_thread(
+                translate_extraction_to_english, extracted_data
+            )
             append_log(job, "Translated multilingual extracted fields to English")
         mark_stage_completed(job, 2)
 
@@ -761,8 +882,64 @@ async def health() -> dict[str, Any]:
     }
 
 
+@app.get("/api/auth/session")
+async def auth_session(request: Request, requested_role: str | None = None) -> dict[str, Any]:
+    if not GATEKEEPER_AUTH_ENABLED:
+        return {
+            "mode": "demo",
+            "authenticated": False,
+            "user": None,
+            "requestedRole": requested_role,
+            "requestedRoleAllowed": False,
+        }
+
+    auth_headers = read_gatekeeper_headers(request)
+    authenticated = bool(auth_headers["email"])
+
+    return {
+        "mode": "gatekeeper",
+        "authenticated": authenticated,
+        "user": (
+            {
+                "email": auth_headers["email"],
+                "name": auth_headers["name"] or auth_headers["email"],
+                "grantedRole": auth_headers["role"],
+            }
+            if authenticated
+            else None
+        ),
+        "requestedRole": requested_role,
+        "requestedRoleAllowed": granted_role_allows_requested_role(
+            auth_headers["role"], requested_role
+        ),
+    }
+
+
+@app.get("/api/auth/login", include_in_schema=False)
+async def auth_login(request: Request, requested_role: str) -> RedirectResponse:
+    if not GATEKEEPER_AUTH_ENABLED:
+        raise HTTPException(status_code=404, detail="Gatekeeper auth is not enabled.")
+
+    if not requested_role_to_gatekeeper_role(requested_role):
+        raise HTTPException(status_code=400, detail="Unknown requested role.")
+
+    return RedirectResponse(
+        url=build_gatekeeper_signin_url(request, requested_role), status_code=302
+    )
+
+
+@app.get("/api/auth/logout", include_in_schema=False)
+async def auth_logout(request: Request) -> RedirectResponse:
+    if not GATEKEEPER_AUTH_ENABLED:
+        return RedirectResponse(url="/", status_code=302)
+
+    return RedirectResponse(url=build_gatekeeper_signout_url(request), status_code=302)
+
+
 @app.post("/api/digitize", status_code=202)
-async def create_digitize_job(payload: DigitizePayload, background_tasks: BackgroundTasks) -> dict[str, Any]:
+async def create_digitize_job(
+    payload: DigitizePayload, background_tasks: BackgroundTasks
+) -> dict[str, Any]:
     file_name = sanitize_value(payload.fileName)
     file_type = sanitize_value(payload.fileType)
     if file_name == "N/A" or file_type == "N/A":
@@ -785,7 +962,9 @@ async def get_digitize_job(job_id: str) -> dict[str, Any]:
 @app.get("/", include_in_schema=False)
 async def serve_frontend_root() -> FileResponse:
     if not FRONTEND_INDEX_FILE.exists():
-        raise HTTPException(status_code=404, detail="Frontend build not found. Run `npm run build` first.")
+        raise HTTPException(
+            status_code=404, detail="Frontend build not found. Run `npm run build` first."
+        )
     return FileResponse(FRONTEND_INDEX_FILE)
 
 
@@ -799,8 +978,8 @@ async def serve_frontend(full_path: str) -> FileResponse:
 
     try:
         requested_path.relative_to(dist_root)
-    except ValueError:
-        raise HTTPException(status_code=404, detail="Not found.")
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail="Not found.") from exc
 
     if requested_path.is_file():
         return FileResponse(requested_path)
@@ -808,7 +987,9 @@ async def serve_frontend(full_path: str) -> FileResponse:
     if FRONTEND_INDEX_FILE.exists():
         return FileResponse(FRONTEND_INDEX_FILE)
 
-    raise HTTPException(status_code=404, detail="Frontend build not found. Run `npm run build` first.")
+    raise HTTPException(
+        status_code=404, detail="Frontend build not found. Run `npm run build` first."
+    )
 
 
 if __name__ == "__main__":
