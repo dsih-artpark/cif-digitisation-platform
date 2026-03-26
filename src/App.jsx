@@ -10,8 +10,55 @@ import CaseReviewPage from "./pages/CaseReviewPage/CaseReviewPage";
 import Reports from "./pages/Reports/Reports";
 import LandingPage from "./pages/LandingPage/LandingPage";
 
-const GATEKEEPER_BASE_URL = import.meta.env.VITE_GATEKEEPER_URL
-const GATEKEEPER_APP_SLUG = "cif";
+const GATEKEEPER_BASE_URL = (import.meta.env.VITE_GATEKEEPER_URL || "").replace(/\/+$/, "");
+const GATEKEEPER_APP_SLUG = (import.meta.env.VITE_GATEKEEPER_APP_SLUG || "").trim().toLowerCase();
+
+function extractEmail(meData) {
+  if (!meData || typeof meData !== "object") return "";
+
+  const directCandidates = [
+    meData.email,
+    meData.primary_email,
+    meData.user_email,
+    meData.mail,
+  ];
+
+  for (const candidate of directCandidates) {
+    if (typeof candidate === "string" && candidate.trim()) {
+      return candidate.trim().toLowerCase();
+    }
+  }
+
+  if (meData.user && typeof meData.user === "object") {
+    return extractEmail(meData.user);
+  }
+
+  return "";
+}
+
+function matchesCifApp(entry) {
+  if (!entry || typeof entry !== "object") return false;
+
+  const exactSlug = (entry.app_slug || "").trim().toLowerCase();
+  if (GATEKEEPER_APP_SLUG && exactSlug === GATEKEEPER_APP_SLUG) {
+    return true;
+  }
+
+  if (GATEKEEPER_APP_SLUG) {
+    return false;
+  }
+
+  const searchableValues = [
+    entry.app_slug,
+    entry.app_name,
+    entry.name,
+    entry.title,
+  ]
+    .filter((value) => typeof value === "string")
+    .map((value) => value.trim().toLowerCase());
+
+  return searchableValues.some((value) => value.includes("cif"));
+}
 
 async function getSessionRole() {
   const meResponse = await fetch(`${GATEKEEPER_BASE_URL}/api/v1/auth/me`, {
@@ -27,6 +74,7 @@ async function getSessionRole() {
   }
 
   const meData = await meResponse.json();
+  const signedInEmail = extractEmail(meData);
   const appsResponse = await fetch(`${GATEKEEPER_BASE_URL}/api/v1/auth/me/apps`, {
     credentials: "include",
   });
@@ -37,10 +85,21 @@ async function getSessionRole() {
 
   const appEntries = await appsResponse.json();
   const cifAppEntry = Array.isArray(appEntries)
-    ? appEntries.find((item) => item.app_slug === GATEKEEPER_APP_SLUG)
+    ? appEntries.find((item) => matchesCifApp(item))
     : null;
+
+  if (!cifAppEntry) {
+    return {
+      activeRole: "",
+      authError: "Your account is signed in but does not have CIF access. Contact admin for role grant.",
+    };
+  }
+
   const gatekeeperRole = cifAppEntry?.role || "";
-  const activeRole = mapGatekeeperRoleToAppRole(gatekeeperRole, Boolean(meData?.is_admin));
+  const activeRole = mapGatekeeperRoleToAppRole(gatekeeperRole, {
+    isAdmin: Boolean(meData?.is_admin),
+    email: signedInEmail,
+  });
 
   if (!activeRole) {
     return {
@@ -142,7 +201,7 @@ function App() {
           <Routes>
             <Route
               path="/"
-              element={<LandingPage authError={authError} />}
+              element={activeRole ? <Navigate to={roleHome} replace /> : <LandingPage authError={authError} />}
             />
             <Route
               path="/dashboard"

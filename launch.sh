@@ -23,7 +23,7 @@ git clone https://github.com/dsih-artpark/cif-digitisation-platform.git
 cd cif-digitisation-platform
 
 npm ci
-uv sync --directory backend --frozen
+uv sync --frozen
 
 
 cp example.env .env
@@ -44,7 +44,7 @@ User=ubuntu
 WorkingDirectory=/home/ubuntu/cif-digitisation-platform
 Environment=PATH=/home/ubuntu/.local/bin:/usr/bin:/bin
 EnvironmentFile=/home/ubuntu/cif-digitisation-platform/.env
-ExecStart=/home/ubuntu/.local/bin/uv run --directory backend uvicorn app:app --host 0.0.0.0 --port 8787
+ExecStart=/home/ubuntu/.local/bin/uv run python -m backend.main
 Restart=always
 RestartSec=5
 

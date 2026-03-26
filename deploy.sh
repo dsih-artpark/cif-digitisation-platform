@@ -15,7 +15,7 @@ git checkout "$BRANCH"
 git pull --ff-only origin "$BRANCH"
 
 npm ci
-uv sync --directory backend --frozen
+uv sync --frozen
 npm run build
 
 sudo systemctl restart cif-app

@@ -1,112 +1,97 @@
-# Gadchiroli Digitisation tool for Malaria
+# CIF Digitisation Platform
 
-## Problem Statement
+Digitisation workflow for CIF documents generated at PHCs, with a React frontend and a FastAPI backend.
 
-Digitise CIF docs generated at PHCs in Tribal regions of Gadchiroli.
+## Current Architecture
 
-## User Journey
+- Frontend: React + Vite in [`src/`](./src)
+- Backend: FastAPI in [`backend/`](./backend)
+- Production/runtime model: the backend serves the built frontend from [`dist/`](./dist), so users access it as one application
+- Authentication provider: hosted Gatekeeper at `https://auth.artpark.ai`
 
-### 1. Entry and Role Selection
+## Project Layout
 
-Users land on the home page and choose a role:
-
-- Front Line Worker
-- Medical Officer
-- Admin (User Analytics)
-
-Role selection controls which modules each user can access.
-
-### 2. Front Line Worker Journey
-
-1. Open **Upload CIF** (`/upload`) and submit a case document.
-2. Move to **Processing** (`/processing`) to follow ingestion and extraction stages.
-3. Open **Case Records** (`/case-review`) to verify and edit extracted values.
-4. Finalize the reviewed case for downstream monitoring.
-
-### 3. Medical Officer Journey
-
-1. Log in to **Dashboard** (`/dashboard`).
-2. Monitor case volume, status mix, and regional performance.
-3. Use visual summaries (including the India map view) to identify trends and review priorities.
-
-### 4. Admin / User Analytics Journey
-
-1. Access **Dashboard** for system-wide metrics.
-2. Use **Upload CIF**, **Processing**, and **Case Records** for operational checks.
-3. Open **Reports** (`/reports`) for reporting workflows.
-
-### 5. Continuous Operational Cycle
-
-The platform is designed as a loop:
-
-Upload -> Process -> Review -> Monitor -> Improve data quality in the next upload cycle.
-
-## Download / Clone
-
-### Option A: Download ZIP (GitHub)
-
-1. Open the repository on GitHub.
-2. Click **Code** → **Download ZIP**.
-3. Extract the ZIP to a folder on your computer.
-
-### Option B: Clone with Git
-
-```bash
-git clone https://github.com/nithins-artpark/cif-digitisation-platform.git
-cd cif-digitisation-platform
+```text
+.
+|-- backend/              Python backend code
+|   |-- app.py            FastAPI app
+|   |-- main.py           Backend entrypoint
+|-- public/               Static frontend assets
+|-- scripts/              Helper scripts
+|-- src/                  React application
+|-- validation/           Validation models/examples
+|-- package.json          Frontend/npm scripts
+|-- example.env           Example environment variables
+|-- pyproject.toml        Root Python project metadata and dependencies
+|-- uv.lock               Locked Python dependency versions
+|-- README.md
 ```
 
 ## Prerequisites
 
-- **Node.js**: 18+ recommended (for the Vite + React frontend)
-- **Python**: 3.10+ recommended (for the FastAPI backend)
-- **uv**: required for Python dependency sync and backend run
+- Node.js 18+
+- Python 3.12+
+- `uv`
 
-## Development Workflow
+## Environment Variables
 
-### 1) One-Time Setup
+Create `.env` from [`example.env`](./example.env).
+
+Example:
+
+```env
+API_PORT=8787
+OPENROUTER_BASE_URL=https://openrouter.ai/api/v1
+OPENROUTER_API_KEY=your_openrouter_api_key_here
+VITE_API_BASE_URL=http://localhost:8787
+VITE_GATEKEEPER_URL=https://auth.artpark.ai
+```
+
+Notes:
+
+- `VITE_GATEKEEPER_URL` should point to the hosted Gatekeeper base URL.
+- Avoid adding a trailing slash unless your frontend URL builders normalize it consistently.
+
+## Install
 
 From the project root:
 
 ```powershell
 npm install
-cd backend
 uv sync
-cd ..
 ```
 
-### 2) Start Both Frontend + Backend (Single Command)
+## Run In Development
 
-From the project root:
+### Option 1: Frontend and backend together
 
 ```powershell
 npm run dev:all
 ```
 
-### 3) Open the Applications
+Opens:
 
-- Frontend UI: `http://localhost:5173`
+- Frontend: `http://localhost:5173`
 - Backend API: `http://localhost:8787`
-- Backend Swagger Docs: `http://localhost:8787/docs`
+- API docs: `http://localhost:8787/docs`
 
-### 4) Optional: Run Separately
+### Option 2: Run separately
 
-Terminal 1 (Backend):
+Backend:
 
 ```powershell
-cd backend
-uv run python main.py
+npm run dev:backend
 ```
 
-Terminal 2 (Frontend):
+Frontend:
 
 ```powershell
 npm run dev
 ```
 
-### 5) Serve Frontend from FastAPI (Single Server Mode)
+## Run As One App
 
-From the project root:
+To build the frontend and serve it from FastAPI:
 
 ```powershell
 npm run build:full
@@ -114,12 +99,57 @@ npm run build:full
 
 Open:
 
-- Application (served by FastAPI): `http://localhost:8787`
-- Backend API docs: `http://localhost:8787/docs`
+- App: `http://localhost:8787`
+- API docs: `http://localhost:8787/docs`
 
-## Notes (Authentication / Gatekeeper)
+This is the closest local equivalent to the deployed single-app setup.
 
-The UI is wired to a separate authentication service (Gatekeeper) at `http://localhost:8000`.
+## Authentication And Roles
 
-- If Gatekeeper is not running, the app may show an authentication warning.
-- The backend digitisation API can still be started and tested independently.
+This app is configured to use Gatekeeper at `https://auth.artpark.ai`.
+
+Current app roles:
+
+- `admin`
+- `front_line_worker`
+- `medical_officer`
+
+Current route access in the app:
+
+- Admin: dashboard, upload, processing, case review, reports
+- Front Line Worker: upload, processing, case review
+- Medical Officer: dashboard
+
+## Gatekeeper Notes
+
+- Users and role assignments are managed in Gatekeeper, not in this repo.
+- The CIF app should recognize the signed-in user based on Gatekeeper session/app access.
+- If sign-in succeeds but the app returns to the landing page, the usual causes are:
+  - the Gatekeeper app slug in the frontend does not match the real Gatekeeper app slug
+  - the returned Gatekeeper role value does not match the role names expected by the app
+  - the signed-in user is not assigned to the CIF app in Gatekeeper
+  - the session cookie is not being sent back to the app
+
+## Backend Dependency Files
+
+These files now live at the repository root because the Python backend is treated as one `uv` project for the whole app:
+
+- [`pyproject.toml`](./pyproject.toml): canonical Python project config for `uv`
+- [`uv.lock`](./uv.lock): reproducible lockfile for backend dependencies
+
+`requirements.txt` is no longer needed in this repo because `uv` is the dependency source of truth.
+
+## Troubleshooting
+
+### Sign-in goes back to landing page
+
+Check these first:
+
+1. `https://auth.artpark.ai/api/v1/auth/me` returns `200`
+2. `https://auth.artpark.ai/api/v1/auth/me/apps` includes the CIF app
+3. The CIF app slug matches what the frontend is looking for
+4. The user role returned by Gatekeeper matches one of the role mappings used by the app
+
+### Signup returns 404
+
+That usually means the signup route or URL format being generated by the frontend does not match what the hosted Gatekeeper instance expects.

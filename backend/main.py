@@ -6,7 +6,7 @@ import uvicorn
 def main() -> None:
     port = int(os.getenv("API_PORT", "8787"))
     uvicorn.run(
-        "app:app",
+        "backend.app:app",
         host="0.0.0.0",
         port=port,
         reload=True,

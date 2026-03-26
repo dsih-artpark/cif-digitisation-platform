@@ -1,5 +1,4 @@
 import ArrowForwardRoundedIcon from "@mui/icons-material/ArrowForwardRounded";
-import CampaignRoundedIcon from "@mui/icons-material/CampaignRounded";
 import MedicalServicesRoundedIcon from "@mui/icons-material/MedicalServicesRounded";
 import UploadFileRoundedIcon from "@mui/icons-material/UploadFileRounded";
 import {
@@ -52,24 +51,7 @@ const adminAccess = {
   route: "/dashboard",
 };
 
-const announcements = [
-  "Official Notice: All Front Line Workers shall complete daily CIF document uploads before 17:00 hrs to ensure same-day processing.",
-  "Data entered by Front Line Workers will be available for Medical Officer review only after successful processing and validation.",
-  "Mandatory Compliance: Patient identifiers, case number, and document date must be verified before submission to avoid rejection.",
-  "Quality Advisory: Blurred, incomplete, or improperly scanned documents may be returned for correction and re-upload.",
-  "Review Protocol: Medical Officers are requested to prioritize flagged and high-risk cases within the assigned review window.",
-  "Confidentiality Reminder: CIF records contain sensitive health information; unauthorized sharing or download is strictly prohibited.",
-];
-
-const supportDesk = {
-  heading: "Support Desk Assistance",
-  contact:
-    "For technical support related to CIF Digitisation, contact the Helpdesk at +91-XXXXXXXXXX or cif-support@district.gov.in during Monday to Saturday, 10:00 hrs to 18:00 hrs.",
-  note:
-    "For prompt resolution, kindly include the Case ID, a clear screenshot, and the exact error message in your request.",
-};
-
-const GATEKEEPER_BASE_URL = import.meta.env.VITE_GATEKEEPER_URL
+const GATEKEEPER_BASE_URL = (import.meta.env.VITE_GATEKEEPER_URL || "").replace(/\/+$/, "");
 
 function getGatekeeperAuthUrl(path, routePath) {
   const redirectUrl = `${window.location.origin}${routePath}`;
@@ -83,7 +65,6 @@ function getGatekeeperSignoutUrl(redirectUrl) {
 function LandingPage({ authError = "" }) {
   const [authDialogOpen, setAuthDialogOpen] = useState(false);
   const [selectedAccess, setSelectedAccess] = useState(null);
-  const highlightedAnnouncements = announcements.slice(0, 3);
 
   const openAuthDialog = (accessItem) => {
     setSelectedAccess(accessItem);
@@ -205,20 +186,9 @@ function LandingPage({ authError = "" }) {
           }}
         >
           <CardContent sx={{ px: { xs: 2, md: 2.5 }, py: { xs: 1.8, md: 2 } }}>
-            <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 1.2 }}>
-              <CampaignRoundedIcon sx={{ color: "#0f3460", fontSize: 20 }} />
-              <Typography sx={{ fontWeight: 700, letterSpacing: 0.3, color: "#0f3460", textTransform: "uppercase" }}>
-                Operational Notices
-              </Typography>
-            </Stack>
-
-            <Stack spacing={0.8}>
-              {highlightedAnnouncements.map((item) => (
-                <Typography key={item} variant="body2" color="text.secondary" sx={{ lineHeight: 1.6 }}>
-                  {"\u2022"} {item}
-                </Typography>
-              ))}
-            </Stack>
+            <Typography variant="body2" color="text.secondary" sx={{ lineHeight: 1.7 }}>
+              Select the access level that matches your Gatekeeper account to continue into the CIF workflow.
+            </Typography>
           </CardContent>
         </Card>
 
@@ -308,36 +278,6 @@ function LandingPage({ authError = "" }) {
           })}
         </Grid>
 
-        <Card
-          sx={{
-            borderRadius: 3,
-            border: "1px solid rgba(15, 52, 96, 0.14)",
-            bgcolor: "rgba(248, 251, 255, 0.9)",
-          }}
-        >
-          <CardContent sx={{ py: 2.2, px: { xs: 2, md: 2.5 } }}>
-            <Typography
-              variant="caption"
-              sx={{
-                display: "block",
-                mb: 0.75,
-                letterSpacing: 0.5,
-                textTransform: "uppercase",
-                fontWeight: 800,
-                color: "#0f3460",
-              }}
-            >
-              {supportDesk.heading}
-            </Typography>
-            <Typography variant="body2" color="text.secondary" sx={{ lineHeight: 1.7 }}>
-              {supportDesk.contact}
-            </Typography>
-            <Typography variant="body2" color="text.secondary" sx={{ mt: 0.7, lineHeight: 1.7 }}>
-              {supportDesk.note}
-            </Typography>
-          </CardContent>
-        </Card>
-
         {authError && <Alert severity="warning">{authError}</Alert>}
       </Stack>
 
@@ -346,7 +286,7 @@ function LandingPage({ authError = "" }) {
         <DialogContent>
           <Stack spacing={1.25}>
             <Typography variant="body2" color="text.secondary">
-              New user? Choose <strong>Sign Up</strong>. Existing user? Choose <strong>Sign In</strong>.
+              Users are pre-created in Gatekeeper for this deployment. Please use <strong>Sign In</strong>.
             </Typography>
             <Alert severity="info">
               After login, you will be redirected to {selectedAccess?.buttonLabel || "selected access page"}.
@@ -355,9 +295,6 @@ function LandingPage({ authError = "" }) {
         </DialogContent>
         <DialogActions sx={{ px: 2.5, pb: 2 }}>
           <Button onClick={() => setAuthDialogOpen(false)}>Cancel</Button>
-          <Button variant="outlined" onClick={() => handleGatekeeperRedirect("/signup")}>
-            Sign Up
-          </Button>
           <Button variant="contained" onClick={() => handleGatekeeperRedirect("/signin")}>
             Sign In
           </Button>
