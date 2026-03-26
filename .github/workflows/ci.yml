@@ -11,10 +11,8 @@ jobs:
     runs-on: ubuntu-latest
 
     env:
-      OPENROUTER_API_KEY: ${ { secrets.OPENROUTER_API_KEY } }
-      OPENROUTER_BASE_URL: ${ { vars.OPENROUTER_BASE_URL } }
-      # we can use direct assignment here since these values are not secrets and are the same for all environments
-      VITE_GATEKEEPER_URL: https://auth.artpark.ai
+      OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+      OPENROUTER_BASE_URL: ${{ vars.OPENROUTER_BASE_URL }}
 
     steps:
       - name: Check out repository
@@ -38,10 +36,10 @@ jobs:
         run: npm ci
 
       - name: Install backend dependencies
-        run: uv sync --directory backend --frozen
+        run: uv sync --frozen
 
       - name: Build frontend
         run: npm run build
 
       - name: Smoke test backend import
-        run: uv run --directory backend python -c "import app; print(app.app.title)"
+        run: uv run python -c "import backend.app; print(backend.app.app.title)"

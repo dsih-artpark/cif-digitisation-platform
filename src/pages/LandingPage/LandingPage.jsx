@@ -51,18 +51,7 @@ const adminAccess = {
   route: "/dashboard",
 };
 
-const GATEKEEPER_BASE_URL = (import.meta.env.VITE_GATEKEEPER_URL || "").replace(/\/+$/, "");
-
-function getGatekeeperAuthUrl(path, routePath) {
-  const redirectUrl = `${window.location.origin}${routePath}`;
-  return `${GATEKEEPER_BASE_URL}${path}?redirect=${encodeURIComponent(redirectUrl)}`;
-}
-
-function getGatekeeperSignoutUrl(redirectUrl) {
-  return `${GATEKEEPER_BASE_URL}/signout?redirect=${encodeURIComponent(redirectUrl)}`;
-}
-
-function LandingPage({ authError = "" }) {
+function LandingPage({ onAccessSelect = () => {} }) {
   const [authDialogOpen, setAuthDialogOpen] = useState(false);
   const [selectedAccess, setSelectedAccess] = useState(null);
 
@@ -71,18 +60,10 @@ function LandingPage({ authError = "" }) {
     setAuthDialogOpen(true);
   };
 
-  const handleGatekeeperRedirect = (authPath) => {
+  const handleContinue = () => {
     if (!selectedAccess) return;
-    const authUrl = getGatekeeperAuthUrl(authPath, selectedAccess.route);
-
-    // Force a clean auth session before signup so Gatekeeper does not auto-redirect
-    // using an already authenticated user cookie.
-    if (authPath === "/signup") {
-      window.location.href = getGatekeeperSignoutUrl(authUrl);
-      return;
-    }
-
-    window.location.href = authUrl;
+    onAccessSelect(selectedAccess.role);
+    setAuthDialogOpen(false);
   };
 
   return (
@@ -177,20 +158,7 @@ function LandingPage({ authError = "" }) {
           </CardContent>
         </Card>
 
-        <Card
-          sx={{
-            borderRadius: 3,
-            border: "1px solid rgba(15, 52, 96, 0.12)",
-            bgcolor: "rgba(255, 255, 255, 0.88)",
-            boxShadow: "0 8px 20px rgba(12, 35, 58, 0.06)",
-          }}
-        >
-          <CardContent sx={{ px: { xs: 2, md: 2.5 }, py: { xs: 1.8, md: 2 } }}>
-            <Typography variant="body2" color="text.secondary" sx={{ lineHeight: 1.7 }}>
-              Select the access level that matches your Gatekeeper account to continue into the CIF workflow.
-            </Typography>
-          </CardContent>
-        </Card>
+      
 
         <Grid container spacing={2.5}>
           {roleCards.map((role) => {
@@ -277,8 +245,6 @@ function LandingPage({ authError = "" }) {
             );
           })}
         </Grid>
-
-        {authError && <Alert severity="warning">{authError}</Alert>}
       </Stack>
 
       <Dialog open={authDialogOpen} onClose={() => setAuthDialogOpen(false)} fullWidth maxWidth="xs">
@@ -286,16 +252,20 @@ function LandingPage({ authError = "" }) {
         <DialogContent>
           <Stack spacing={1.25}>
             <Typography variant="body2" color="text.secondary">
-              Users are pre-created in Gatekeeper for this deployment. Please use <strong>Sign In</strong>.
+              This demo does not use a hosted auth service right now. Choose <strong>Sign In</strong> or{" "}
+              <strong>Sign Up</strong> to open the selected landing page directly.
             </Typography>
             <Alert severity="info">
-              After login, you will be redirected to {selectedAccess?.buttonLabel || "selected access page"}.
+              Both options take you to the same role landing page for {selectedAccess?.title || "this access"}.
             </Alert>
           </Stack>
         </DialogContent>
         <DialogActions sx={{ px: 2.5, pb: 2 }}>
           <Button onClick={() => setAuthDialogOpen(false)}>Cancel</Button>
-          <Button variant="contained" onClick={() => handleGatekeeperRedirect("/signin")}>
+          <Button variant="outlined" onClick={handleContinue}>
+            Sign Up
+          </Button>
+          <Button variant="contained" onClick={handleContinue}>
             Sign In
           </Button>
         </DialogActions>
