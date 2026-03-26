@@ -39,5 +39,10 @@ ignore = [
 known-first-party = ["backend"]
 
 [tool.ruff.format]
+
+[dependency-groups]
+dev = [
+    "pre-commit>=4.5.1",
+]
 # Keep formatting responsibility with Black in Option B
 # (So we won't run `ruff format` in pre-commit)
