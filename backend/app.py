@@ -5,6 +5,9 @@ import json
 import logging
 import os
 import re
+import shutil
+import subprocess
+from threading import Lock
 import time
 from datetime import datetime, timezone
 from pathlib import Path
@@ -24,8 +27,12 @@ PORT = int(os.getenv("API_PORT", "8787"))
 OPENROUTER_BASE_URL = os.getenv("OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1")
 MODEL_NAME = "anthropic/claude-sonnet-4.6"
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
+FRONTEND_DIR = PROJECT_ROOT / "frontend"
+FRONTEND_SOURCE_DIR = FRONTEND_DIR / "src"
+FRONTEND_PUBLIC_DIR = FRONTEND_DIR / "public"
 FRONTEND_DIST_DIR = PROJECT_ROOT / "dist"
 FRONTEND_INDEX_FILE = FRONTEND_DIST_DIR / "index.html"
+FRONTEND_BUILD_LOCK = Lock()
 
 STAGE_DEFINITIONS = [
     {
@@ -105,6 +112,79 @@ class DigitizePayload(BaseModel):
 
 def now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
+
+
+def latest_modified_time(*paths: Path) -> float:
+    latest = 0.0
+    for path in paths:
+        if not path.exists():
+            continue
+        if path.is_file():
+            latest = max(latest, path.stat().st_mtime)
+            continue
+        for child in path.rglob("*"):
+            if child.is_file():
+                latest = max(latest, child.stat().st_mtime)
+    return latest
+
+
+def frontend_build_is_stale() -> bool:
+    if not FRONTEND_INDEX_FILE.exists():
+        return True
+
+    source_last_modified = latest_modified_time(
+        FRONTEND_SOURCE_DIR,
+        FRONTEND_PUBLIC_DIR,
+        FRONTEND_DIR / "index.html",
+        FRONTEND_DIR / "package.json",
+        FRONTEND_DIR / "package-lock.json",
+        FRONTEND_DIR / "vite.config.js",
+    )
+    dist_last_modified = latest_modified_time(FRONTEND_DIST_DIR)
+    return source_last_modified > dist_last_modified
+
+
+def get_npm_command() -> str | None:
+    if os.name == "nt":
+        npm_path = shutil.which("npm.cmd") or shutil.which("npm")
+        if npm_path:
+            return npm_path
+
+        program_files = os.environ.get("ProgramFiles", r"C:\Program Files")
+        fallback = Path(program_files) / "nodejs" / "npm.cmd"
+        if fallback.exists():
+            return str(fallback)
+        return None
+
+    return shutil.which("npm")
+
+
+def ensure_frontend_build() -> None:
+    if not frontend_build_is_stale():
+        return
+
+    with FRONTEND_BUILD_LOCK:
+        if not frontend_build_is_stale():
+            return
+
+        npm_command = get_npm_command()
+        if not npm_command:
+            raise RuntimeError("Frontend source is newer than dist, but npm is not available on PATH.")
+
+        logger.info("Frontend source changed. Rebuilding the frontend bundle before serving requests.")
+        try:
+            subprocess.run(
+                [npm_command, "run", "build"],
+                cwd=FRONTEND_DIR,
+                check=True,
+                text=True,
+                capture_output=True,
+            )
+        except subprocess.CalledProcessError as exc:
+            logger.error("Frontend build failed.\nstdout:\n%s\nstderr:\n%s", exc.stdout, exc.stderr)
+            raise RuntimeError("Frontend build failed. Fix the Vite build and refresh the page.") from exc
+
+        logger.info("Frontend bundle is up to date.")
 
 
 def parse_iso_to_ms(value: str | None) -> int | None:
@@ -651,6 +731,8 @@ async def cleanup_jobs_task() -> None:
 async def log_requests(request: Request, call_next):
     start = time.perf_counter()
     logger.info("API call started | %s %s", request.method, request.url.path)
+    if request.method in {"GET", "HEAD"} and not request.url.path.startswith("/api"):
+        ensure_frontend_build()
     response = await call_next(request)
     duration_ms = round((time.perf_counter() - start) * 1000, 2)
     logger.info(
@@ -665,6 +747,7 @@ async def log_requests(request: Request, call_next):
 
 @app.on_event("startup")
 async def startup_event() -> None:
+    ensure_frontend_build()
     logger.info("CIF digitisation API running on http://localhost:%s", PORT)
     asyncio.create_task(cleanup_jobs_task())
 
@@ -729,12 +812,6 @@ async def serve_frontend(full_path: str) -> FileResponse:
 
 
 if __name__ == "__main__":
-    import uvicorn
+    from backend.main import run_server
 
-    uvicorn.run(
-        "backend.app:app",
-        host="0.0.0.0",
-        port=PORT,
-        reload=True,
-        access_log=True,
-    )
+    run_server(PORT)

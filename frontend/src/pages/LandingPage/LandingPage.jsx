@@ -2,7 +2,6 @@ import ArrowForwardRoundedIcon from "@mui/icons-material/ArrowForwardRounded";
 import MedicalServicesRoundedIcon from "@mui/icons-material/MedicalServicesRounded";
 import UploadFileRoundedIcon from "@mui/icons-material/UploadFileRounded";
 import {
-  Alert,
   Box,
   Button,
   Card,
@@ -252,12 +251,8 @@ function LandingPage({ onAccessSelect = () => {} }) {
         <DialogContent>
           <Stack spacing={1.25}>
             <Typography variant="body2" color="text.secondary">
-              This demo does not use a hosted auth service right now. Choose <strong>Sign In</strong> or{" "}
-              <strong>Sign Up</strong> to open the selected landing page directly.
+              Choose <strong>Sign In</strong> or <strong>Sign Up</strong> to continue.
             </Typography>
-            <Alert severity="info">
-              Both options take you to the same role landing page for {selectedAccess?.title || "this access"}.
-            </Alert>
           </Stack>
         </DialogContent>
         <DialogActions sx={{ px: 2.5, pb: 2 }}>
