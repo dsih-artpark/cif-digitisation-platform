@@ -38,17 +38,13 @@ jobs:
       - name: Create deployment bundle
         run: |
           tar -czf /tmp/deploy.tar.gz \
-            --exclude=.git \
-            --exclude=.github \
-            --exclude=deploy.tar.gz \
-            --exclude=node_modules \
-            --exclude=frontend/node_modules \
-            --exclude=.venv \
-            --exclude=backend/.venv \
-            --exclude=.vite \
-            --exclude=.ruff_cache \
-            --exclude=__pycache__ \
-            .
+            backend \
+            frontend \
+            scripts \
+            validation \
+            dist \
+            example.env \
+            README.md
 
       - name: Upload deployment bundle to Lightsail
         uses: appleboy/scp-action@v0.1.7
