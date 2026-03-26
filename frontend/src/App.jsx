@@ -1,6 +1,6 @@
 import { Alert, Box, CircularProgress, Container, Stack, Typography } from "@mui/material";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Navigate, Route, Routes, useLocation, useSearchParams } from "react-router-dom";
+import { Navigate, Route, Routes, useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { getAuthSession, startGatekeeperLogin, startSignOut } from "./api/authClient";
 import Navbar from "./components/Navbar/Navbar";
 import {
