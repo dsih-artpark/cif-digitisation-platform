@@ -257,17 +257,14 @@ function LandingPage({ authMode = "demo", authMessage = "", onAccessSelect = () 
         <DialogContent>
           <Stack spacing={1.25}>
             <Typography variant="body2" color="text.secondary">
-              Choose <strong>Sign In</strong> or <strong>Sign Up</strong> to continue.
+              Choose <strong>Login</strong> to continue.
             </Typography>
           </Stack>
         </DialogContent>
         <DialogActions sx={{ px: 2.5, pb: 2 }}>
           <Button onClick={() => setAuthDialogOpen(false)}>Cancel</Button>
-          <Button variant="outlined" onClick={handleContinue}>
-            Sign Up
-          </Button>
           <Button variant="contained" onClick={handleContinue}>
-            Sign In
+            Login
           </Button>
         </DialogActions>
       </Dialog>

@@ -137,48 +137,7 @@ Run frontend only:
 ```bash
 cd frontend
 npm run dev
-```
 
-Run frontend + backend together from frontend scripts:
-
-```bash
-cd frontend
-npm run dev:all
-```
-
-Build frontend:
-
-```bash
-cd frontend
-npm run build
-```
-
-Preview built frontend:
-
-```bash
-cd frontend
-npm run preview
-```
-
-## 6. Gatekeeper Mode
-
-This project supports Gatekeeper-backed authentication for deployed environments.
-
-Use these env values on server:
-
-```env
-GATEKEEPER_AUTH_ENABLED=true
-GATEKEEPER_AUTH_URL=https://auth.artpark.ai
-```
-
-In Gatekeeper mode, the backend expects these forwarded headers:
-- `X-Auth-User`
-- `X-Auth-Role`
-- `X-Auth-Name`
-
-Important:
-- local development should normally keep Gatekeeper disabled
-- if the deployed app is already protected before the landing page opens, that behavior comes from upstream proxy / server configuration, not from this repo alone
 
 ## 7. Run On Server
 
@@ -211,65 +170,7 @@ If you want to run manually:
 
 ```bash
 uv run python -m backend.main
-```
 
-Live logs:
+- Application link
+https://cifdigitisation-demo.artpark.ai/
 
-```bash
-journalctl -u cif-app -f
-```
-
-## 8. Common Problems
-
-### React changes are not visible on `localhost:8787`
-
-Use one of these:
-- run frontend separately with `npm run dev`
-- or rebuild frontend with `npm run build`
-
-### `pre-commit` / git hook says module not found
-
-Run:
-
-```bash
-uv sync --directory backend --group dev
-```
-
-### Gatekeeper login works but access is denied
-
-Check:
-- the user has the correct role granted in Gatekeeper
-- the deployed environment forwards `X-Auth-Role`
-- you are not reusing an old Gatekeeper SSO session from another user
-
-## 9. Quick Start Summary
-
-If you just want the shortest working flow from scratch:
-
-```bash
-uv sync --directory backend
-cd frontend
-npm install
-npm run dev
-```
-
-In another terminal:
-
-```bash
-uv run python -m backend.main
-```
-
-Then open:
-- `http://localhost:5173`
-
-Or, for backend-served UI:
-
-```bash
-cd frontend
-npm run build
-cd ..
-uv run python -m backend.main
-```
-
-Then open:
-- `http://localhost:8787`
