@@ -19,20 +19,6 @@ import LandingPage from "./pages/LandingPage/LandingPage";
 
 const ROLE_STORAGE_KEY = "cif_demo_active_role";
 
-function readStoredRole() {
-  if (typeof window === "undefined") return "";
-  return window.sessionStorage.getItem(ROLE_STORAGE_KEY) || "";
-}
-
-function persistRole(role) {
-  if (typeof window === "undefined") return;
-  if (role) {
-    window.sessionStorage.setItem(ROLE_STORAGE_KEY, role);
-    return;
-  }
-  window.sessionStorage.removeItem(ROLE_STORAGE_KEY);
-}
-
 function FullPageLoader({ title, description }) {
   return (
     <Box
@@ -144,11 +130,16 @@ function AuthCallback({ onGatekeeperResolved }) {
 
 function App() {
   const location = useLocation();
-  const [activeRole, setActiveRole] = useState(readStoredRole);
+  const [activeRole, setActiveRole] = useState("");
   const [authMode, setAuthMode] = useState("loading");
   const [grantedRole, setGrantedRole] = useState("");
   const [authReady, setAuthReady] = useState(false);
   const isLandingPage = location.pathname === "/";
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    window.sessionStorage.removeItem(ROLE_STORAGE_KEY);
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -165,12 +156,8 @@ function App() {
         setGrantedRole(nextGrantedRole);
 
         if (nextMode === "gatekeeper") {
-          const storedRole = readStoredRole();
-          const requestedRole = doesGrantedRoleAllowRequestedRole(nextGrantedRole, storedRole)
-            ? storedRole
-            : inferRoleFromPath(location.pathname, nextGrantedRole);
+          const requestedRole = inferRoleFromPath(location.pathname, nextGrantedRole);
           setActiveRole(requestedRole);
-          persistRole(requestedRole);
         }
       } catch {
         if (cancelled) return;
@@ -195,7 +182,6 @@ function App() {
     const nextRole = resolveRoleForRoute(activeRole, grantedRole, location.pathname);
     if (nextRole && nextRole !== activeRole) {
       setActiveRole(nextRole);
-      persistRole(nextRole);
     }
   }, [activeRole, authMode, grantedRole, location.pathname]);
 
@@ -209,23 +195,19 @@ function App() {
 
   const handleRoleSelect = useCallback((role) => {
     setActiveRole(role);
-    persistRole(role);
   }, []);
 
   const handleGatekeeperLogin = useCallback((role) => {
-    persistRole(role);
     startGatekeeperLogin(role);
   }, []);
 
   const handleGatekeeperResolved = useCallback((requestedRole, nextGrantedRole) => {
     setGrantedRole(nextGrantedRole);
     setActiveRole(requestedRole);
-    persistRole(requestedRole);
   }, []);
 
   const handleSignOut = useCallback(() => {
     setActiveRole("");
-    persistRole("");
     if (authMode === "gatekeeper") {
       startSignOut();
       return;

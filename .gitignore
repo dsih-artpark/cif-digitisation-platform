@@ -3,6 +3,7 @@ dist
 .vite/
 .DS_Store
 .env
+ocr-evaluation-lab/
 __pycache__/
 *.pyc
 .venv/

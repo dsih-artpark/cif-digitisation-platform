@@ -31,21 +31,10 @@ const EMPTY_FIELD_STATUS = {
   hbLevel: "Review Required",
 };
 
-function loadStoredUploadHistory() {
-  try {
-    const storedHistory = sessionStorage.getItem(UPLOAD_HISTORY_STORAGE_KEY);
-    if (!storedHistory) return [];
-    const parsed = JSON.parse(storedHistory);
-    return Array.isArray(parsed) ? parsed : [];
-  } catch (_error) {
-    return [];
-  }
-}
-
 export function CifProvider({ children }) {
   const [uploadedFile, setUploadedFile] = useState(null);
   const [previewUrl, setPreviewUrl] = useState("");
-  const [uploadedDocuments, setUploadedDocuments] = useState(loadStoredUploadHistory);
+  const [uploadedDocuments, setUploadedDocuments] = useState([]);
   const [caseData, setCaseData] = useState(EMPTY_CASE_DATA);
   const [fieldStatus, setFieldStatus] = useState(EMPTY_FIELD_STATUS);
   const [recordStatus, setRecordStatus] = useState("Review Required");
@@ -55,8 +44,9 @@ export function CifProvider({ children }) {
   const [extractionMetadata, setExtractionMetadata] = useState(null);
 
   useEffect(() => {
-    sessionStorage.setItem(UPLOAD_HISTORY_STORAGE_KEY, JSON.stringify(uploadedDocuments));
-  }, [uploadedDocuments]);
+    if (typeof window === "undefined") return;
+    window.sessionStorage.removeItem(UPLOAD_HISTORY_STORAGE_KEY);
+  }, []);
 
   const addUploadedDocument = useCallback((file, uploadedByRole) => {
     if (!file) return;
