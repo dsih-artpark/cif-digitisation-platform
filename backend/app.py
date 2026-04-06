@@ -41,13 +41,6 @@ GATEKEEPER_AUTH_ENABLED = os.getenv("GATEKEEPER_AUTH_ENABLED", "false").strip().
     "on",
 }
 GATEKEEPER_AUTH_URL = os.getenv("GATEKEEPER_AUTH_URL", "https://auth.artpark.ai").rstrip("/")
-GATEKEEPER_ROLE_BY_EMAIL = {
-    "adish@artpark.in": "admin",
-    "nithin.s+mo@artpark.in": "mo",
-    "nithin.s+flw@artpark.in": "flw",
-    "sneha@artpark.in": "admin",
-    "nithin.s@artpark.in": "admin",
-}
 GATEKEEPER_KNOWN_ROLES = ("admin", "mo", "flw")
 
 STAGE_DEFINITIONS = [
@@ -191,10 +184,7 @@ def resolve_gatekeeper_role(request: Request) -> str:
     for expected_role in GATEKEEPER_KNOWN_ROLES:
         if expected_role in forwarded_roles:
             return expected_role
-
-    # Fallback to exact user-role assignments configured in Gatekeeper for this app.
-    resolved_email = resolve_gatekeeper_email(request)
-    return normalize_gatekeeper_role(GATEKEEPER_ROLE_BY_EMAIL.get(resolved_email))
+    return ""
 
 
 def read_gatekeeper_headers(request: Request) -> dict[str, str]:
