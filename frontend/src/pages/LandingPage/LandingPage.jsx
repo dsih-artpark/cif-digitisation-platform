@@ -2,6 +2,7 @@ import ArrowForwardRoundedIcon from "@mui/icons-material/ArrowForwardRounded";
 import MedicalServicesRoundedIcon from "@mui/icons-material/MedicalServicesRounded";
 import UploadFileRoundedIcon from "@mui/icons-material/UploadFileRounded";
 import {
+  Alert,
   Box,
   Button,
   Card,
@@ -50,7 +51,7 @@ const adminAccess = {
   route: "/dashboard",
 };
 
-function LandingPage({ onAccessSelect = () => {} }) {
+function LandingPage({ authMessage = "", onAccessSelect = () => {} }) {
   const [loginDialogOpen, setLoginDialogOpen] = useState(false);
   const [selectedAccess, setSelectedAccess] = useState(null);
 
@@ -86,6 +87,7 @@ function LandingPage({ onAccessSelect = () => {} }) {
       />
 
       <Stack spacing={2.5} sx={{ position: "relative", zIndex: 1 }}>
+        {authMessage ? <Alert severity="error">{authMessage}</Alert> : null}
         <Card
           sx={{
             borderRadius: 4,

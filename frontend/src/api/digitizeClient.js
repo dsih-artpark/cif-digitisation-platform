@@ -1,3 +1,5 @@
+import { getAccessToken } from "./authClient";
+
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "";
 
 function parseErrorMessage(payload, fallbackMessage) {
@@ -24,10 +26,12 @@ function fileToDataUrl(file) {
 
 export async function createDigitizeJob(file) {
   const fileDataUrl = await fileToDataUrl(file);
+  const accessToken = getAccessToken();
   const response = await fetch(`${API_BASE_URL}/api/digitize`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
+      ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
     },
     body: JSON.stringify({
       fileName: file.name,
@@ -49,7 +53,10 @@ export async function createDigitizeJob(file) {
 }
 
 export async function getDigitizeJob(jobId) {
-  const response = await fetch(`${API_BASE_URL}/api/digitize/${jobId}`);
+  const accessToken = getAccessToken();
+  const response = await fetch(`${API_BASE_URL}/api/digitize/${jobId}`, {
+    headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : {},
+  });
   const payload = await response.json().catch(() => ({}));
 
   if (!response.ok) {

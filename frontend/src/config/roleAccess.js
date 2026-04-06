@@ -4,6 +4,16 @@ export const DEMO_ROLES = {
   MEDICAL_OFFICER: "medical_officer",
 };
 
+export const AUTH0_ROLE_TO_APP_ROLE = {
+  admin: DEMO_ROLES.USER_ANALYTICS,
+  flw: DEMO_ROLES.FRONT_LINE_WORKER,
+  mo: DEMO_ROLES.MEDICAL_OFFICER,
+};
+
+export const APP_ROLE_TO_AUTH0_ROLE = Object.fromEntries(
+  Object.entries(AUTH0_ROLE_TO_APP_ROLE).map(([auth0Role, appRole]) => [appRole, auth0Role]),
+);
+
 export const ROLE_ACCESS = {
   [DEMO_ROLES.USER_ANALYTICS]: {
     label: "User Analytics",
@@ -40,4 +50,14 @@ export function getRoleHome(role) {
 export function isRouteAllowed(role, path) {
   if (!role || !path) return false;
   return ROLE_ACCESS[role]?.allowedRoutes.includes(path) ?? false;
+}
+
+export function getAuth0RoleForAppRole(appRole) {
+  return APP_ROLE_TO_AUTH0_ROLE[appRole] || "";
+}
+
+export function appRoleMatchesAssignedRoles(appRole, assignedRoles = []) {
+  const expectedAuth0Role = getAuth0RoleForAppRole(appRole);
+  if (!expectedAuth0Role) return false;
+  return assignedRoles.includes(expectedAuth0Role);
 }

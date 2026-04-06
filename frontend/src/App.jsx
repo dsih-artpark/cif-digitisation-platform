@@ -1,8 +1,21 @@
-import { Box, Container } from "@mui/material";
-import { useCallback, useMemo, useState } from "react";
-import { Navigate, Route, Routes, useLocation } from "react-router-dom";
+import { Box, CircularProgress, Container, Stack, Typography } from "@mui/material";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { Navigate, Route, Routes, useLocation, useNavigate } from "react-router-dom";
 import Navbar from "./components/Navbar/Navbar";
-import { getRoleHome, isRouteAllowed } from "./config/roleAccess";
+import {
+  appRoleMatchesAssignedRoles,
+  getRoleHome,
+  isRouteAllowed,
+} from "./config/roleAccess";
+import {
+  clearStoredSession,
+  completeAuth0Login,
+  getStoredSession,
+  hasAuthCallbackParams,
+  isAuth0Configured,
+  logoutFromAuth0,
+  startAuth0Login,
+} from "./api/authClient";
 import Dashboard from "./pages/Dashboard/Dashboard";
 import UploadPage from "./pages/UploadPage/UploadPage";
 import ProcessingPage from "./pages/ProcessingPage/ProcessingPage";
@@ -12,8 +25,28 @@ import LandingPage from "./pages/LandingPage/LandingPage";
 
 const ROLE_STORAGE_KEY = "cif_demo_active_role";
 
-function RoleGuard({ activeRole, routePath, children }) {
-  if (!activeRole) {
+function FullPageLoader({ title, description }) {
+  return (
+    <Box
+      sx={{
+        minHeight: "calc(100vh - 48px)",
+        display: "grid",
+        placeItems: "center",
+      }}
+    >
+      <Stack spacing={1.5} alignItems="center" textAlign="center">
+        <CircularProgress size={34} />
+        <Typography variant="h6">{title}</Typography>
+        <Typography variant="body2" color="text.secondary">
+          {description}
+        </Typography>
+      </Stack>
+    </Box>
+  );
+}
+
+function RoleGuard({ activeRole, isAuthenticated, routePath, children }) {
+  if (!isAuthenticated || !activeRole) {
     return <Navigate to="/" replace />;
   }
 
@@ -26,31 +59,137 @@ function RoleGuard({ activeRole, routePath, children }) {
 
 function App() {
   const location = useLocation();
+  const navigate = useNavigate();
   const [activeRole, setActiveRole] = useState(() => {
     if (typeof window === "undefined") return "";
     return window.sessionStorage.getItem(ROLE_STORAGE_KEY) || "";
   });
+  const [authSession, setAuthSession] = useState(() => {
+    if (typeof window === "undefined") return null;
+    return getStoredSession();
+  });
+  const [authMessage, setAuthMessage] = useState("");
+  const [authReady, setAuthReady] = useState(false);
   const isLandingPage = location.pathname === "/";
+  const isAuthenticated = Boolean(authSession?.accessToken);
   const effectiveRole = activeRole;
   const roleHome = useMemo(() => getRoleHome(effectiveRole), [effectiveRole]);
 
-  const handleRoleSelect = useCallback((role) => {
-    if (typeof window !== "undefined") {
-      window.sessionStorage.setItem(ROLE_STORAGE_KEY, role);
+  useEffect(() => {
+    let cancelled = false;
+
+    const syncAuthState = async () => {
+      if (typeof window === "undefined") return;
+
+      setAuthReady(false);
+      try {
+        if (isAuth0Configured() && hasAuthCallbackParams()) {
+          const { requestedRole, session } = await completeAuth0Login();
+          if (cancelled) return;
+
+          setAuthSession(session);
+          if (!requestedRole || !appRoleMatchesAssignedRoles(requestedRole, session.roles)) {
+            window.sessionStorage.removeItem(ROLE_STORAGE_KEY);
+            setActiveRole("");
+            setAuthMessage("Access denied. Sign in with a user assigned to the selected CIF role.");
+            navigate("/", { replace: true });
+            return;
+          }
+
+          window.sessionStorage.setItem(ROLE_STORAGE_KEY, requestedRole);
+          setActiveRole(requestedRole);
+          setAuthMessage("");
+          navigate(getRoleHome(requestedRole), { replace: true });
+          return;
+        }
+
+        const storedSession = getStoredSession();
+        if (cancelled) return;
+
+        setAuthSession(storedSession);
+        const storedRole = window.sessionStorage.getItem(ROLE_STORAGE_KEY) || "";
+        if (storedSession && storedRole && appRoleMatchesAssignedRoles(storedRole, storedSession.roles)) {
+          setActiveRole(storedRole);
+        } else {
+          window.sessionStorage.removeItem(ROLE_STORAGE_KEY);
+          setActiveRole("");
+        }
+      } catch (error) {
+        if (cancelled) return;
+        clearStoredSession();
+        window.sessionStorage.removeItem(ROLE_STORAGE_KEY);
+        setAuthSession(null);
+        setActiveRole("");
+        setAuthMessage(error instanceof Error ? error.message : "Unable to complete sign in.");
+        navigate("/", { replace: true });
+      } finally {
+        if (!cancelled) {
+          setAuthReady(true);
+        }
+      }
+    };
+
+    void syncAuthState();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [navigate]);
+
+  const handleRoleSelect = useCallback(async (role) => {
+    setAuthMessage("");
+    if (!isAuth0Configured()) {
+      if (typeof window !== "undefined") {
+        window.sessionStorage.setItem(ROLE_STORAGE_KEY, role);
+      }
+      setActiveRole(role);
+      return;
     }
-    setActiveRole(role);
+
+    setAuthReady(false);
+    try {
+      await startAuth0Login(role);
+    } catch (error) {
+      setAuthReady(true);
+      setAuthMessage(error instanceof Error ? error.message : "Unable to start sign in.");
+    }
   }, []);
 
-  const handleSignOut = useCallback(() => {
+  const performSignOut = useCallback(() => {
     if (typeof window !== "undefined") {
       window.sessionStorage.removeItem(ROLE_STORAGE_KEY);
     }
     setActiveRole("");
+    setAuthSession(null);
+    setAuthMessage("");
+    if (isAuth0Configured()) {
+      logoutFromAuth0();
+      return;
+    }
   }, []);
+
+  useEffect(() => {
+    if (isAuth0Configured() && !isAuthenticated && location.pathname !== "/") {
+      navigate("/", { replace: true });
+    }
+  }, [isAuthenticated, location.pathname, navigate]);
+
+  if (!authReady) {
+    return (
+      <Box sx={{ minHeight: "100vh", bgcolor: "background.default" }}>
+        <Container maxWidth="xl" sx={{ py: { xs: 3, md: 4 } }}>
+          <FullPageLoader
+            title="Loading CIF Digitisation System"
+            description="Completing role-based sign in and preparing your workspace."
+          />
+        </Container>
+      </Box>
+    );
+  }
 
   return (
     <Box sx={{ minHeight: "100vh", bgcolor: "background.default" }}>
-      {!isLandingPage && effectiveRole && <Navbar activeRole={effectiveRole} onSignOut={handleSignOut} />}
+      {!isLandingPage && effectiveRole && <Navbar activeRole={effectiveRole} onSignOut={performSignOut} />}
       <Container
         maxWidth="xl"
         sx={{
@@ -66,14 +205,18 @@ function App() {
                 effectiveRole ? (
                   <Navigate to={roleHome} replace />
                 ) : (
-                  <LandingPage onAccessSelect={handleRoleSelect} />
+                  <LandingPage authMessage={authMessage} onAccessSelect={handleRoleSelect} />
                 )
               }
             />
             <Route
               path="/dashboard"
               element={
-                <RoleGuard activeRole={activeRole} routePath="/dashboard">
+                <RoleGuard
+                  activeRole={activeRole}
+                  isAuthenticated={isAuthenticated || !isAuth0Configured()}
+                  routePath="/dashboard"
+                >
                   <Dashboard activeRole={effectiveRole} />
                 </RoleGuard>
               }
@@ -81,7 +224,11 @@ function App() {
             <Route
               path="/upload"
               element={
-                <RoleGuard activeRole={activeRole} routePath="/upload">
+                <RoleGuard
+                  activeRole={activeRole}
+                  isAuthenticated={isAuthenticated || !isAuth0Configured()}
+                  routePath="/upload"
+                >
                   <UploadPage activeRole={effectiveRole} />
                 </RoleGuard>
               }
@@ -89,7 +236,11 @@ function App() {
             <Route
               path="/processing"
               element={
-                <RoleGuard activeRole={activeRole} routePath="/processing">
+                <RoleGuard
+                  activeRole={activeRole}
+                  isAuthenticated={isAuthenticated || !isAuth0Configured()}
+                  routePath="/processing"
+                >
                   <ProcessingPage activeRole={effectiveRole} />
                 </RoleGuard>
               }
@@ -97,7 +248,11 @@ function App() {
             <Route
               path="/case-review"
               element={
-                <RoleGuard activeRole={activeRole} routePath="/case-review">
+                <RoleGuard
+                  activeRole={activeRole}
+                  isAuthenticated={isAuthenticated || !isAuth0Configured()}
+                  routePath="/case-review"
+                >
                   <CaseReviewPage activeRole={effectiveRole} />
                 </RoleGuard>
               }
@@ -105,7 +260,11 @@ function App() {
             <Route
               path="/reports"
               element={
-                <RoleGuard activeRole={activeRole} routePath="/reports">
+                <RoleGuard
+                  activeRole={activeRole}
+                  isAuthenticated={isAuthenticated || !isAuth0Configured()}
+                  routePath="/reports"
+                >
                   <Reports />
                 </RoleGuard>
               }

@@ -9,16 +9,19 @@ import shutil
 import subprocess
 import time
 from datetime import UTC, datetime
+from functools import lru_cache
 from pathlib import Path
 from threading import Lock
 from typing import Any
 from uuid import uuid4
 
+import jwt
 import requests
 from dotenv import load_dotenv
 from fastapi import BackgroundTasks, FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
+from jwt import InvalidTokenError, PyJWKClient
 from pydantic import BaseModel
 
 load_dotenv()
@@ -33,6 +36,13 @@ FRONTEND_PUBLIC_DIR = FRONTEND_DIR / "public"
 FRONTEND_DIST_DIR = PROJECT_ROOT / "dist"
 FRONTEND_INDEX_FILE = FRONTEND_DIST_DIR / "index.html"
 FRONTEND_BUILD_LOCK = Lock()
+AUTH0_DOMAIN = os.getenv("AUTH0_DOMAIN", "").strip()
+AUTH0_AUDIENCE = os.getenv("AUTH0_AUDIENCE", "").strip()
+AUTH0_ISSUER = os.getenv("AUTH0_ISSUER", "").strip()
+AUTH0_ROLE_CLAIM = os.getenv(
+    "AUTH0_ROLE_CLAIM", "https://cifdigitisation-demo.artpark.ai/roles"
+).strip()
+AUTH0_ENABLED = bool(AUTH0_DOMAIN and AUTH0_AUDIENCE and AUTH0_ISSUER)
 
 STAGE_DEFINITIONS = [
     {
@@ -108,6 +118,64 @@ class DigitizePayload(BaseModel):
     fileName: str
     fileType: str
     fileDataUrl: str
+
+
+@lru_cache(maxsize=1)
+def get_auth0_jwks_client() -> PyJWKClient:
+    return PyJWKClient(f"https://{AUTH0_DOMAIN}/.well-known/jwks.json")
+
+
+def normalize_auth0_roles(raw_roles: Any) -> list[str]:
+    if isinstance(raw_roles, list):
+        return [str(role).strip().lower() for role in raw_roles if str(role).strip()]
+    if isinstance(raw_roles, str) and raw_roles.strip():
+        return [role for role in re.split(r"[\s,;|]+", raw_roles.strip().lower()) if role]
+    return []
+
+
+def extract_bearer_token(request: Request) -> str | None:
+    authorization = request.headers.get("authorization", "").strip()
+    if not authorization:
+        return None
+
+    scheme, _, token = authorization.partition(" ")
+    if scheme.lower() != "bearer" or not token.strip():
+        return None
+    return token.strip()
+
+
+def decode_auth0_token(token: str) -> dict[str, Any]:
+    signing_key = get_auth0_jwks_client().get_signing_key_from_jwt(token)
+    return jwt.decode(
+        token,
+        signing_key.key,
+        algorithms=["RS256"],
+        audience=AUTH0_AUDIENCE,
+        issuer=AUTH0_ISSUER,
+    )
+
+
+def require_auth0_roles(request: Request, allowed_roles: set[str]) -> set[str]:
+    if not AUTH0_ENABLED:
+        return set()
+
+    token = extract_bearer_token(request)
+    if not token:
+        raise HTTPException(status_code=401, detail="Authentication is required.")
+
+    try:
+        payload = decode_auth0_token(token)
+    except InvalidTokenError as exc:
+        raise HTTPException(status_code=401, detail="Invalid authentication token.") from exc
+
+    roles = set(normalize_auth0_roles(payload.get(AUTH0_ROLE_CLAIM, [])))
+    if not roles:
+        raise HTTPException(status_code=403, detail="No authorized CIF role was found.")
+
+    if roles.isdisjoint(allowed_roles):
+        raise HTTPException(status_code=403, detail="You do not have access to this resource.")
+
+    return roles
 
 
 def now_iso() -> str:
@@ -824,8 +892,10 @@ async def health() -> dict[str, Any]:
 
 @app.post("/api/digitize", status_code=202)
 async def create_digitize_job(
-    payload: DigitizePayload, background_tasks: BackgroundTasks
+    payload: DigitizePayload, background_tasks: BackgroundTasks, request: Request
 ) -> dict[str, Any]:
+    require_auth0_roles(request, {"admin", "flw"})
+
     file_name = sanitize_value(payload.fileName)
     file_type = sanitize_value(payload.fileType)
     if file_name == "N/A" or file_type == "N/A":
@@ -838,7 +908,9 @@ async def create_digitize_job(
 
 
 @app.get("/api/digitize/{job_id}")
-async def get_digitize_job(job_id: str) -> dict[str, Any]:
+async def get_digitize_job(job_id: str, request: Request) -> dict[str, Any]:
+    require_auth0_roles(request, {"admin", "flw"})
+
     job = jobs.get(job_id)
     if not job:
         raise HTTPException(status_code=404, detail="Job not found.")
