@@ -146,11 +146,41 @@ def granted_role_allows_requested_role(
     return granted == requested
 
 
+def split_forwarded_roles(raw_value: str | None) -> list[str]:
+    if not raw_value:
+        return []
+    parts = re.split(r"[\s,;|]+", raw_value.strip().lower())
+    return [part for part in parts if part]
+
+
+def resolve_gatekeeper_role(request: Request) -> str:
+    candidate_headers = [
+        request.headers.get("x-auth-roles", ""),
+        request.headers.get("x-auth-role", ""),
+        request.headers.get("x-auth-groups", ""),
+    ]
+    forwarded_roles: list[str] = []
+    for raw_value in candidate_headers:
+        forwarded_roles.extend(split_forwarded_roles(raw_value))
+
+    # Prefer the broadest access role first if multiple roles are forwarded.
+    for expected_role in ("admin", "mo", "flw"):
+        if expected_role in forwarded_roles:
+            return expected_role
+    return ""
+
+
 def read_gatekeeper_headers(request: Request) -> dict[str, str]:
     return {
-        "email": request.headers.get("x-auth-user", "").strip(),
-        "role": request.headers.get("x-auth-role", "").strip().lower(),
-        "name": request.headers.get("x-auth-name", "").strip(),
+        "email": (
+            request.headers.get("x-auth-email", "").strip()
+            or request.headers.get("x-auth-user", "").strip()
+        ),
+        "role": resolve_gatekeeper_role(request),
+        "name": (
+            request.headers.get("x-auth-name", "").strip()
+            or request.headers.get("x-auth-username", "").strip()
+        ),
     }
 
 
