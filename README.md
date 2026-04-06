@@ -50,16 +50,13 @@ Example:
 API_PORT=8787
 OPENROUTER_BASE_URL=https://openrouter.ai/api/v1
 OPENROUTER_API_KEY=your_openrouter_api_key_here
-GATEKEEPER_AUTH_ENABLED=false
-GATEKEEPER_AUTH_URL=https://auth.artpark.ai
 
 # Frontend
 VITE_API_BASE_URL=http://localhost:8787
 ```
 
 Notes:
-- Keep `GATEKEEPER_AUTH_ENABLED=false` for normal local development.
-- Turn it on only when the app is deployed behind Gatekeeper.
+- The application now uses direct role-based entry from the landing page.
 
 ## 3. Install Dependencies From Scratch
 
@@ -137,9 +134,18 @@ Run frontend only:
 ```bash
 cd frontend
 npm run dev
+cd ..
+```
 
+Build frontend:
 
-## 7. Run On Server
+```bash
+cd frontend
+npm run build
+cd ..
+```
+
+## 6. Run On Server
 
 On the server:
 
@@ -170,7 +176,7 @@ If you want to run manually:
 
 ```bash
 uv run python -m backend.main
+```
 
-- Application link
-https://cifdigitisation-demo.artpark.ai/
-
+Application link:
+`https://cifdigitisation-demo.artpark.ai/`

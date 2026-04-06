@@ -12,14 +12,13 @@ from datetime import UTC, datetime
 from pathlib import Path
 from threading import Lock
 from typing import Any
-from urllib.parse import urlencode
 from uuid import uuid4
 
 import requests
 from dotenv import load_dotenv
 from fastapi import BackgroundTasks, FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, RedirectResponse
+from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
 load_dotenv()
@@ -34,14 +33,6 @@ FRONTEND_PUBLIC_DIR = FRONTEND_DIR / "public"
 FRONTEND_DIST_DIR = PROJECT_ROOT / "dist"
 FRONTEND_INDEX_FILE = FRONTEND_DIST_DIR / "index.html"
 FRONTEND_BUILD_LOCK = Lock()
-GATEKEEPER_AUTH_ENABLED = os.getenv("GATEKEEPER_AUTH_ENABLED", "false").strip().lower() in {
-    "1",
-    "true",
-    "yes",
-    "on",
-}
-GATEKEEPER_AUTH_URL = os.getenv("GATEKEEPER_AUTH_URL", "https://auth.artpark.ai").rstrip("/")
-GATEKEEPER_KNOWN_ROLES = ("admin", "mo", "flw")
 
 STAGE_DEFINITIONS = [
     {
@@ -117,101 +108,6 @@ class DigitizePayload(BaseModel):
     fileName: str
     fileType: str
     fileDataUrl: str
-
-
-def build_external_base_url(request: Request) -> str:
-    forwarded_proto = request.headers.get("x-forwarded-proto")
-    scheme = forwarded_proto or request.url.scheme
-    host = request.headers.get("host") or request.url.netloc
-    return f"{scheme}://{host}"
-
-
-def requested_role_to_gatekeeper_role(requested_role: str | None) -> str | None:
-    requested = (requested_role or "").strip().lower()
-    if requested == "user_analytics":
-        return "admin"
-    if requested == "front_line_worker":
-        return "flw"
-    if requested == "medical_officer":
-        return "mo"
-    return None
-
-
-def granted_role_allows_requested_role(
-    granted_role: str | None, requested_role: str | None
-) -> bool:
-    granted = (granted_role or "").strip().lower()
-    requested = requested_role_to_gatekeeper_role(requested_role)
-    if not granted or not requested:
-        return False
-    if granted == "admin":
-        return True
-    return granted == requested
-
-
-def split_forwarded_roles(raw_value: str | None) -> list[str]:
-    if not raw_value:
-        return []
-    parts = re.split(r"[\s,;|]+", raw_value.strip().lower())
-    return [part for part in parts if part]
-
-
-def normalize_gatekeeper_role(raw_role: str | None) -> str:
-    normalized = (raw_role or "").strip().lower()
-    if normalized in GATEKEEPER_KNOWN_ROLES:
-        return normalized
-    return ""
-
-
-def resolve_gatekeeper_email(request: Request) -> str:
-    return (
-        request.headers.get("x-auth-email", "").strip().lower()
-        or request.headers.get("x-auth-user", "").strip().lower()
-    )
-
-
-def resolve_gatekeeper_role(request: Request) -> str:
-    candidate_headers = [
-        request.headers.get("x-auth-roles", ""),
-        request.headers.get("x-auth-role", ""),
-        request.headers.get("x-auth-groups", ""),
-    ]
-    forwarded_roles: list[str] = []
-    for raw_value in candidate_headers:
-        forwarded_roles.extend(split_forwarded_roles(raw_value))
-
-    # Prefer the broadest access role first if multiple roles are forwarded.
-    for expected_role in GATEKEEPER_KNOWN_ROLES:
-        if expected_role in forwarded_roles:
-            return expected_role
-    return ""
-
-
-def read_gatekeeper_headers(request: Request) -> dict[str, str]:
-    return {
-        "email": resolve_gatekeeper_email(request),
-        "role": resolve_gatekeeper_role(request),
-        "name": (
-            request.headers.get("x-auth-name", "").strip()
-            or request.headers.get("x-auth-username", "").strip()
-        ),
-    }
-
-
-def build_gatekeeper_signin_url(request: Request, requested_role: str) -> str:
-    base_url = build_external_base_url(request)
-    callback_url = f"{base_url}/auth/callback?requested_role={requested_role}"
-    query = urlencode({"redirect": callback_url})
-    return f"{GATEKEEPER_AUTH_URL}/signin?{query}"
-
-
-def build_gatekeeper_signout_url(request: Request) -> str:
-    base_url = build_external_base_url(request)
-    post_signout_redirect = (
-        f"{GATEKEEPER_AUTH_URL}/signin?{urlencode({'redirect': f'{base_url}/'})}"
-    )
-    query = urlencode({"redirect": post_signout_redirect})
-    return f"{GATEKEEPER_AUTH_URL}/signout?{query}"
 
 
 def now_iso() -> str:
@@ -924,60 +820,6 @@ async def health() -> dict[str, Any]:
         "model": MODEL_NAME,
         "time": now_iso(),
     }
-
-
-@app.get("/api/auth/session")
-async def auth_session(request: Request, requested_role: str | None = None) -> dict[str, Any]:
-    if not GATEKEEPER_AUTH_ENABLED:
-        return {
-            "mode": "demo",
-            "authenticated": False,
-            "user": None,
-            "requestedRole": requested_role,
-            "requestedRoleAllowed": False,
-        }
-
-    auth_headers = read_gatekeeper_headers(request)
-    authenticated = bool(auth_headers["email"])
-
-    return {
-        "mode": "gatekeeper",
-        "authenticated": authenticated,
-        "user": (
-            {
-                "email": auth_headers["email"],
-                "name": auth_headers["name"] or auth_headers["email"],
-                "grantedRole": auth_headers["role"],
-            }
-            if authenticated
-            else None
-        ),
-        "requestedRole": requested_role,
-        "requestedRoleAllowed": granted_role_allows_requested_role(
-            auth_headers["role"], requested_role
-        ),
-    }
-
-
-@app.get("/api/auth/login", include_in_schema=False)
-async def auth_login(request: Request, requested_role: str) -> RedirectResponse:
-    if not GATEKEEPER_AUTH_ENABLED:
-        raise HTTPException(status_code=404, detail="Gatekeeper auth is not enabled.")
-
-    if not requested_role_to_gatekeeper_role(requested_role):
-        raise HTTPException(status_code=400, detail="Unknown requested role.")
-
-    return RedirectResponse(
-        url=build_gatekeeper_signin_url(request, requested_role), status_code=302
-    )
-
-
-@app.get("/api/auth/logout", include_in_schema=False)
-async def auth_logout(request: Request) -> RedirectResponse:
-    if not GATEKEEPER_AUTH_ENABLED:
-        return RedirectResponse(url="/", status_code=302)
-
-    return RedirectResponse(url=build_gatekeeper_signout_url(request), status_code=302)
 
 
 @app.post("/api/digitize", status_code=202)

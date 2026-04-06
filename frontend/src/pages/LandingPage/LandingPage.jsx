@@ -2,7 +2,6 @@ import ArrowForwardRoundedIcon from "@mui/icons-material/ArrowForwardRounded";
 import MedicalServicesRoundedIcon from "@mui/icons-material/MedicalServicesRounded";
 import UploadFileRoundedIcon from "@mui/icons-material/UploadFileRounded";
 import {
-  Alert,
   Box,
   Button,
   Card,
@@ -51,22 +50,18 @@ const adminAccess = {
   route: "/dashboard",
 };
 
-function LandingPage({ authMode = "demo", authMessage = "", onAccessSelect = () => {}, onGatekeeperLogin = () => {} }) {
-  const [authDialogOpen, setAuthDialogOpen] = useState(false);
+function LandingPage({ onAccessSelect = () => {} }) {
+  const [loginDialogOpen, setLoginDialogOpen] = useState(false);
   const [selectedAccess, setSelectedAccess] = useState(null);
 
   const openAuthDialog = (accessItem) => {
     setSelectedAccess(accessItem);
-    setAuthDialogOpen(true);
+    setLoginDialogOpen(true);
   };
 
   const handleContinue = () => {
     if (!selectedAccess) return;
-    setAuthDialogOpen(false);
-    if (authMode === "gatekeeper") {
-      onGatekeeperLogin(selectedAccess.role);
-      return;
-    }
+    setLoginDialogOpen(false);
     onAccessSelect(selectedAccess.role);
   };
 
@@ -91,7 +86,6 @@ function LandingPage({ authMode = "demo", authMessage = "", onAccessSelect = () 
       />
 
       <Stack spacing={2.5} sx={{ position: "relative", zIndex: 1 }}>
-        {authMessage ? <Alert severity="error">{authMessage}</Alert> : null}
         <Card
           sx={{
             borderRadius: 4,
@@ -252,17 +246,17 @@ function LandingPage({ authMode = "demo", authMessage = "", onAccessSelect = () 
         </Grid>
       </Stack>
 
-      <Dialog open={authDialogOpen} onClose={() => setAuthDialogOpen(false)} fullWidth maxWidth="xs">
+      <Dialog open={loginDialogOpen} onClose={() => setLoginDialogOpen(false)} fullWidth maxWidth="xs">
         <DialogTitle>{selectedAccess?.title || "User Access"}</DialogTitle>
         <DialogContent>
           <Stack spacing={1.25}>
             <Typography variant="body2" color="text.secondary">
-              Choose <strong>Login</strong> to continue.
+              Choose <strong>Login</strong> to open the selected CIF workspace.
             </Typography>
           </Stack>
         </DialogContent>
         <DialogActions sx={{ px: 2.5, pb: 2 }}>
-          <Button onClick={() => setAuthDialogOpen(false)}>Cancel</Button>
+          <Button onClick={() => setLoginDialogOpen(false)}>Cancel</Button>
           <Button variant="contained" onClick={handleContinue}>
             Login
           </Button>

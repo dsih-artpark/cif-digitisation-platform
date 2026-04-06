@@ -1,15 +1,8 @@
-import { Alert, Box, CircularProgress, Container, Stack, Typography } from "@mui/material";
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { Navigate, Route, Routes, useLocation, useNavigate, useSearchParams } from "react-router-dom";
-import { getAuthSession, startGatekeeperLogin, startSignOut } from "./api/authClient";
+import { Box, Container } from "@mui/material";
+import { useCallback, useMemo, useState } from "react";
+import { Navigate, Route, Routes, useLocation } from "react-router-dom";
 import Navbar from "./components/Navbar/Navbar";
-import {
-  doesGrantedRoleAllowRequestedRole,
-  getDefaultRoleForGrantedRole,
-  getRoleHome,
-  inferRoleFromPath,
-  isRouteAllowed,
-} from "./config/roleAccess";
+import { getRoleHome, isRouteAllowed } from "./config/roleAccess";
 import Dashboard from "./pages/Dashboard/Dashboard";
 import UploadPage from "./pages/UploadPage/UploadPage";
 import ProcessingPage from "./pages/ProcessingPage/ProcessingPage";
@@ -19,51 +12,7 @@ import LandingPage from "./pages/LandingPage/LandingPage";
 
 const ROLE_STORAGE_KEY = "cif_demo_active_role";
 
-function FullPageLoader({ title, description }) {
-  return (
-    <Box
-      sx={{
-        minHeight: "calc(100vh - 48px)",
-        display: "grid",
-        placeItems: "center",
-      }}
-    >
-      <Stack spacing={1.5} alignItems="center" textAlign="center">
-        <CircularProgress size={34} />
-        <Typography variant="h6">{title}</Typography>
-        <Typography variant="body2" color="text.secondary">
-          {description}
-        </Typography>
-      </Stack>
-    </Box>
-  );
-}
-
-function resolveRoleForRoute(activeRole, grantedRole, routePath) {
-  if (activeRole && isRouteAllowed(activeRole, routePath)) {
-    return activeRole;
-  }
-  return inferRoleFromPath(routePath, grantedRole);
-}
-
-function RoleGuard({ authMode, activeRole, grantedRole, routePath, children }) {
-  if (authMode === "gatekeeper") {
-    if (!grantedRole) {
-      return <Navigate to="/" replace />;
-    }
-
-    const effectiveRole = resolveRoleForRoute(activeRole, grantedRole, routePath);
-    if (!effectiveRole || !isRouteAllowed(effectiveRole, routePath)) {
-      return <Navigate to="/?authError=access_denied" replace />;
-    }
-
-    if (!doesGrantedRoleAllowRequestedRole(grantedRole, effectiveRole)) {
-      return <Navigate to="/?authError=access_denied" replace />;
-    }
-
-    return children;
-  }
-
+function RoleGuard({ activeRole, routePath, children }) {
   if (!activeRole) {
     return <Navigate to="/" replace />;
   }
@@ -75,162 +24,29 @@ function RoleGuard({ authMode, activeRole, grantedRole, routePath, children }) {
   return children;
 }
 
-function AuthCallback({ onGatekeeperResolved }) {
-  const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
-  const [errorMessage, setErrorMessage] = useState("");
-
-  useEffect(() => {
-    let cancelled = false;
-
-    const finalizeAuth = async () => {
-      const requestedRole = searchParams.get("requested_role") || "";
-
-      try {
-        const session = await getAuthSession(requestedRole);
-        if (cancelled) return;
-
-        if (!session?.authenticated || !session?.requestedRoleAllowed || !requestedRole) {
-          onGatekeeperResolved("", "");
-          navigate("/?authError=access_denied", { replace: true });
-          return;
-        }
-
-        const grantedRole = session.user?.grantedRole || "";
-        onGatekeeperResolved(requestedRole, grantedRole);
-        navigate(getRoleHome(requestedRole), { replace: true });
-      } catch (error) {
-        if (cancelled) return;
-        setErrorMessage(error instanceof Error ? error.message : "Unable to complete Gatekeeper sign in.");
-      }
-    };
-
-    void finalizeAuth();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [navigate, onGatekeeperResolved, searchParams]);
-
-  if (errorMessage) {
-    return (
-      <Box sx={{ py: { xs: 4, md: 6 } }}>
-        <Alert severity="error">{errorMessage}</Alert>
-      </Box>
-    );
-  }
-
-  return (
-    <FullPageLoader
-      title="Completing sign in"
-      description="Verifying your Gatekeeper access and loading the correct CIF workspace."
-    />
-  );
-}
-
 function App() {
   const location = useLocation();
-  const [activeRole, setActiveRole] = useState("");
-  const [authMode, setAuthMode] = useState("loading");
-  const [grantedRole, setGrantedRole] = useState("");
-  const [authReady, setAuthReady] = useState(false);
+  const [activeRole, setActiveRole] = useState(() => {
+    if (typeof window === "undefined") return "";
+    return window.sessionStorage.getItem(ROLE_STORAGE_KEY) || "";
+  });
   const isLandingPage = location.pathname === "/";
-
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    window.sessionStorage.removeItem(ROLE_STORAGE_KEY);
-  }, []);
-
-  useEffect(() => {
-    let cancelled = false;
-
-    const hydrateAuth = async () => {
-      try {
-        const session = await getAuthSession();
-        if (cancelled) return;
-
-        const nextMode = session?.mode === "gatekeeper" ? "gatekeeper" : "demo";
-        const nextGrantedRole = session?.user?.grantedRole || "";
-
-        setAuthMode(nextMode);
-        setGrantedRole(nextGrantedRole);
-
-        if (nextMode === "gatekeeper") {
-          const requestedRole = inferRoleFromPath(location.pathname, nextGrantedRole);
-          setActiveRole(requestedRole);
-        }
-      } catch {
-        if (cancelled) return;
-        setAuthMode("demo");
-      } finally {
-        if (!cancelled) {
-          setAuthReady(true);
-        }
-      }
-    };
-
-    void hydrateAuth();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [location.pathname]);
-
-  useEffect(() => {
-    if (authMode !== "gatekeeper" || !grantedRole) return;
-
-    const nextRole = resolveRoleForRoute(activeRole, grantedRole, location.pathname);
-    if (nextRole && nextRole !== activeRole) {
-      setActiveRole(nextRole);
-    }
-  }, [activeRole, authMode, grantedRole, location.pathname]);
-
-  const effectiveRole = useMemo(() => {
-    if (authMode === "gatekeeper") {
-      return activeRole || getDefaultRoleForGrantedRole(grantedRole);
-    }
-    return activeRole;
-  }, [activeRole, authMode, grantedRole]);
+  const effectiveRole = activeRole;
   const roleHome = useMemo(() => getRoleHome(effectiveRole), [effectiveRole]);
 
   const handleRoleSelect = useCallback((role) => {
+    if (typeof window !== "undefined") {
+      window.sessionStorage.setItem(ROLE_STORAGE_KEY, role);
+    }
     setActiveRole(role);
   }, []);
 
-  const handleGatekeeperLogin = useCallback((role) => {
-    startGatekeeperLogin(role);
-  }, []);
-
-  const handleGatekeeperResolved = useCallback((requestedRole, nextGrantedRole) => {
-    setGrantedRole(nextGrantedRole);
-    setActiveRole(requestedRole);
-  }, []);
-
   const handleSignOut = useCallback(() => {
+    if (typeof window !== "undefined") {
+      window.sessionStorage.removeItem(ROLE_STORAGE_KEY);
+    }
     setActiveRole("");
-    if (authMode === "gatekeeper") {
-      startSignOut();
-      return;
-    }
-  }, [authMode]);
-
-  const authMessage = useMemo(() => {
-    const params = new URLSearchParams(location.search);
-    if (params.get("authError") === "access_denied") {
-      return "Access denied. Please sign in with a permitted CIF role.";
-    }
-    return "";
-  }, [location.search]);
-
-  if (!authReady || authMode === "loading") {
-    return (
-      <Box sx={{ minHeight: "100vh", bgcolor: "background.default" }}>
-        <Container maxWidth="xl" sx={{ py: { xs: 3, md: 4 } }}>
-          <FullPageLoader title="Loading CIF Digitisation System" description="Checking your access configuration." />
-        </Container>
-      </Box>
-    );
-  }
+  }, []);
 
   return (
     <Box sx={{ minHeight: "100vh", bgcolor: "background.default" }}>
@@ -247,23 +63,17 @@ function App() {
             <Route
               path="/"
               element={
-                effectiveRole && !authMessage ? (
+                effectiveRole ? (
                   <Navigate to={roleHome} replace />
                 ) : (
-                  <LandingPage
-                    authMode={authMode}
-                    authMessage={authMessage}
-                    onAccessSelect={handleRoleSelect}
-                    onGatekeeperLogin={handleGatekeeperLogin}
-                  />
+                  <LandingPage onAccessSelect={handleRoleSelect} />
                 )
               }
             />
-            <Route path="/auth/callback" element={<AuthCallback onGatekeeperResolved={handleGatekeeperResolved} />} />
             <Route
               path="/dashboard"
               element={
-                <RoleGuard authMode={authMode} activeRole={activeRole} grantedRole={grantedRole} routePath="/dashboard">
+                <RoleGuard activeRole={activeRole} routePath="/dashboard">
                   <Dashboard activeRole={effectiveRole} />
                 </RoleGuard>
               }
@@ -271,7 +81,7 @@ function App() {
             <Route
               path="/upload"
               element={
-                <RoleGuard authMode={authMode} activeRole={activeRole} grantedRole={grantedRole} routePath="/upload">
+                <RoleGuard activeRole={activeRole} routePath="/upload">
                   <UploadPage activeRole={effectiveRole} />
                 </RoleGuard>
               }
@@ -279,7 +89,7 @@ function App() {
             <Route
               path="/processing"
               element={
-                <RoleGuard authMode={authMode} activeRole={activeRole} grantedRole={grantedRole} routePath="/processing">
+                <RoleGuard activeRole={activeRole} routePath="/processing">
                   <ProcessingPage activeRole={effectiveRole} />
                 </RoleGuard>
               }
@@ -287,7 +97,7 @@ function App() {
             <Route
               path="/case-review"
               element={
-                <RoleGuard authMode={authMode} activeRole={activeRole} grantedRole={grantedRole} routePath="/case-review">
+                <RoleGuard activeRole={activeRole} routePath="/case-review">
                   <CaseReviewPage activeRole={effectiveRole} />
                 </RoleGuard>
               }
@@ -295,7 +105,7 @@ function App() {
             <Route
               path="/reports"
               element={
-                <RoleGuard authMode={authMode} activeRole={activeRole} grantedRole={grantedRole} routePath="/reports">
+                <RoleGuard activeRole={activeRole} routePath="/reports">
                   <Reports />
                 </RoleGuard>
               }
