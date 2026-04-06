@@ -45,7 +45,7 @@ const roleCards = [
 ];
 
 const adminAccess = {
-  role: DEMO_ROLES.USER_ANALYTICS,
+  role: DEMO_ROLES.ADMIN,
   title: "Admin",
   buttonLabel: "Admin Login",
   route: "/dashboard",

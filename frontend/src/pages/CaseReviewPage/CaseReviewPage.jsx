@@ -54,7 +54,7 @@ function CaseReviewPage({ activeRole = "" }) {
     recordStatus,
     setRecordStatus,
   } = useCif();
-  const showValidationRules = activeRole === DEMO_ROLES.USER_ANALYTICS;
+  const showValidationRules = activeRole === DEMO_ROLES.ADMIN;
 
   const rows = useMemo(
     () => [

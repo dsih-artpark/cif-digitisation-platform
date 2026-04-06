@@ -91,6 +91,7 @@ function App() {
           if (!requestedRole || !appRoleMatchesAssignedRoles(requestedRole, session.roles)) {
             window.sessionStorage.removeItem(ROLE_STORAGE_KEY);
             setActiveRole("");
+            console.log(requestedRole, session.roles);
             setAuthMessage("Access denied. Sign in with a user assigned to the selected CIF role.");
             navigate("/", { replace: true });
             return;

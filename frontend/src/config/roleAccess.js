@@ -1,11 +1,11 @@
 export const DEMO_ROLES = {
-  USER_ANALYTICS: "user_analytics",
-  FRONT_LINE_WORKER: "front_line_worker",
-  MEDICAL_OFFICER: "medical_officer",
+  ADMIN: "admin",
+  FRONT_LINE_WORKER: "flw",
+  MEDICAL_OFFICER: "mo",
 };
 
 export const AUTH0_ROLE_TO_APP_ROLE = {
-  admin: DEMO_ROLES.USER_ANALYTICS,
+  admin: DEMO_ROLES.ADMIN,
   flw: DEMO_ROLES.FRONT_LINE_WORKER,
   mo: DEMO_ROLES.MEDICAL_OFFICER,
 };
@@ -15,7 +15,7 @@ export const APP_ROLE_TO_AUTH0_ROLE = Object.fromEntries(
 );
 
 export const ROLE_ACCESS = {
-  [DEMO_ROLES.USER_ANALYTICS]: {
+  [DEMO_ROLES.ADMIN]: {
     label: "User Analytics",
     home: "/dashboard",
     allowedRoutes: ["/dashboard", "/upload", "/processing", "/case-review", "/reports"],

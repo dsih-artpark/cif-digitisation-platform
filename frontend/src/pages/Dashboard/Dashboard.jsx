@@ -37,7 +37,7 @@ function Dashboard({ activeRole }) {
   const navigate = useNavigate();
   const { uploadedDocuments, clearUploadedDocuments } = useCif();
   const [selectedStateName, setSelectedStateName] = useState("Maharashtra");
-  const isAnalyticsRole = activeRole === DEMO_ROLES.USER_ANALYTICS;
+  const isAnalyticsRole = activeRole === DEMO_ROLES.ADMIN;
   const recentUploads = useMemo(() => uploadedDocuments.slice(0, 5), [uploadedDocuments]);
 
   const regionOptions = useMemo(
