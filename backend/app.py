@@ -41,6 +41,14 @@ GATEKEEPER_AUTH_ENABLED = os.getenv("GATEKEEPER_AUTH_ENABLED", "false").strip().
     "on",
 }
 GATEKEEPER_AUTH_URL = os.getenv("GATEKEEPER_AUTH_URL", "https://auth.artpark.ai").rstrip("/")
+GATEKEEPER_ROLE_BY_EMAIL = {
+    "adish@artpark.in": "admin",
+    "nithin.s+mo@artpark.in": "mo",
+    "nithin.s+flw@artpark.in": "flw",
+    "sneha@artpark.in": "admin",
+    "nithin.s@artpark.in": "admin",
+}
+GATEKEEPER_KNOWN_ROLES = ("admin", "mo", "flw")
 
 STAGE_DEFINITIONS = [
     {
@@ -126,12 +134,14 @@ def build_external_base_url(request: Request) -> str:
 
 
 def requested_role_to_gatekeeper_role(requested_role: str | None) -> str | None:
-    mapping = {
-        "user_analytics": "admin",
-        "front_line_worker": "flw",
-        "medical_officer": "mo",
-    }
-    return mapping.get((requested_role or "").strip().lower())
+    requested = (requested_role or "").strip().lower()
+    if requested == "user_analytics":
+        return "admin"
+    if requested == "front_line_worker":
+        return "flw"
+    if requested == "medical_officer":
+        return "mo"
+    return None
 
 
 def granted_role_allows_requested_role(
@@ -153,6 +163,20 @@ def split_forwarded_roles(raw_value: str | None) -> list[str]:
     return [part for part in parts if part]
 
 
+def normalize_gatekeeper_role(raw_role: str | None) -> str:
+    normalized = (raw_role or "").strip().lower()
+    if normalized in GATEKEEPER_KNOWN_ROLES:
+        return normalized
+    return ""
+
+
+def resolve_gatekeeper_email(request: Request) -> str:
+    return (
+        request.headers.get("x-auth-email", "").strip().lower()
+        or request.headers.get("x-auth-user", "").strip().lower()
+    )
+
+
 def resolve_gatekeeper_role(request: Request) -> str:
     candidate_headers = [
         request.headers.get("x-auth-roles", ""),
@@ -164,18 +188,18 @@ def resolve_gatekeeper_role(request: Request) -> str:
         forwarded_roles.extend(split_forwarded_roles(raw_value))
 
     # Prefer the broadest access role first if multiple roles are forwarded.
-    for expected_role in ("admin", "mo", "flw"):
+    for expected_role in GATEKEEPER_KNOWN_ROLES:
         if expected_role in forwarded_roles:
             return expected_role
-    return ""
+
+    # Fallback to exact user-role assignments configured in Gatekeeper for this app.
+    resolved_email = resolve_gatekeeper_email(request)
+    return normalize_gatekeeper_role(GATEKEEPER_ROLE_BY_EMAIL.get(resolved_email))
 
 
 def read_gatekeeper_headers(request: Request) -> dict[str, str]:
     return {
-        "email": (
-            request.headers.get("x-auth-email", "").strip()
-            or request.headers.get("x-auth-user", "").strip()
-        ),
+        "email": resolve_gatekeeper_email(request),
         "role": resolve_gatekeeper_role(request),
         "name": (
             request.headers.get("x-auth-name", "").strip()
