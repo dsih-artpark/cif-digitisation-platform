@@ -1,6 +1,16 @@
 import CloudUploadRoundedIcon from "@mui/icons-material/CloudUploadRounded";
 import DescriptionRoundedIcon from "@mui/icons-material/DescriptionRounded";
-import { Box, Button, Card, CardContent, Stack, Typography } from "@mui/material";
+import InsertDriveFileRoundedIcon from "@mui/icons-material/InsertDriveFileRounded";
+import PictureAsPdfRoundedIcon from "@mui/icons-material/PictureAsPdfRounded";
+import {
+  Box,
+  Button,
+  Card,
+  CardContent,
+  Chip,
+  Stack,
+  Typography,
+} from "@mui/material";
 import { useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { createDigitizeJob } from "../../api/digitizeClient";
@@ -89,7 +99,10 @@ function UploadPage({ activeRole }) {
       const message = error?.message || "Unable to start document processing.";
       setStartError(message);
       setProcessingError(message);
-      markCurrentUploadStatus({ extractionStatus: "Failed", recordStatus: "Review Required" });
+      markCurrentUploadStatus({
+        extractionStatus: "Failed",
+        recordStatus: "Review Required",
+      });
     } finally {
       setIsStarting(false);
     }
@@ -99,135 +112,233 @@ function UploadPage({ activeRole }) {
     <Stack spacing={3}>
       <Box>
         <BackButton fallbackPath="/" />
-        <Typography variant="h5">Upload CIF Document</Typography>
-        <Typography color="text.secondary">Digitise handwritten case investigation files.</Typography>
       </Box>
-      <Card>
-        <CardContent>
-          <Box
-            onDrop={handleDrop}
-            onDragOver={(event) => {
-              event.preventDefault();
-              setIsDragActive(true);
-            }}
-            onDragLeave={() => setIsDragActive(false)}
-            sx={{
-              border: "2px dashed",
-              borderColor: isDragActive ? "primary.main" : "#b6c2ce",
-              borderRadius: 2,
-              p: { xs: 2.5, sm: 4, md: 5 },
-              textAlign: "center",
-              bgcolor: isDragActive ? "#f0f6fe" : "background.paper",
-              transition: "all 0.2s ease",
-            }}
-          >
-            <CloudUploadRoundedIcon color="primary" sx={{ fontSize: 42 }} />
-            <Typography mt={1} fontWeight={600}>
-              Drag and drop CIF document
-            </Typography>
-            <Typography variant="body2" color="text.secondary" mb={2}>
-              or select a file from your computer
-            </Typography>
-            <input
-              ref={inputRef}
-              type="file"
-              hidden
-              accept=".jpg,.jpeg,.png,.webp,.pdf,image/jpeg,image/png,image/webp,application/pdf"
-              onChange={(event) => {
-                handleFile(event.target.files?.[0]);
-                event.target.value = "";
-              }}
-            />
-            <Button variant="outlined" onClick={() => inputRef.current?.click()}>
-              Select Document
-            </Button>
-          </Box>
-        </CardContent>
-      </Card>
 
-      {uploadedFile && (
-        <Card>
-          <CardContent>
-            <Typography variant="subtitle1" fontWeight={700} mb={1}>
-              Document Preview
-            </Typography>
-            <Typography variant="body2" color="text.secondary" mb={2}>
-              File: {uploadedFile.name}
-            </Typography>
-            <Typography variant="body2" color="text.secondary" mb={2}>
-              Size: {formatFileSize(uploadedFile.size)}
-            </Typography>
-            {uploadedFile.type.startsWith("image/") && previewUrl && (
-              <Box
-                component="img"
-                src={previewUrl}
-                alt="Uploaded CIF preview"
-                sx={{ maxHeight: 360, width: "100%", objectFit: "contain", borderRadius: 1 }}
-              />
-            )}
-            {uploadedFile.type === "application/pdf" && previewUrl && (
-              <Box
-                sx={{
-                  width: "100%",
-                  display: "flex",
-                  justifyContent: { xs: "center", md: "flex-start" },
-                }}
+      <Card
+        sx={{
+          maxWidth: 980,
+          mx: "auto",
+          width: "100%",
+          borderRadius: 4,
+          overflow: "hidden",
+          background:
+            "radial-gradient(circle at top left, rgba(15,118,110,0.12), transparent 28%), linear-gradient(180deg, rgba(247,250,255,0.98) 0%, rgba(255,255,255,1) 54%, rgba(249,251,254,1) 100%)",
+          boxShadow: "0 28px 70px rgba(14, 47, 83, 0.10)",
+        }}
+      >
+        <Box
+          sx={{
+            height: 10,
+            background:
+              "linear-gradient(90deg, #0f766e 0%, #1d4ed8 52%, #2563eb 100%)",
+          }}
+        />
+        <CardContent sx={{ px: { xs: 3, md: 5 }, py: { xs: 4, md: 5 } }}>
+          <Stack spacing={3.2}>
+            <Stack spacing={1.3} alignItems="center" textAlign="center">
+              <Typography variant="h4" sx={{ fontSize: { xs: "2rem", md: "2.6rem" } }}>
+                Upload CIF Document
+              </Typography>
+              <Typography
+                color="text.secondary"
+                sx={{ maxWidth: 640, fontSize: { xs: "1rem", md: "1.06rem" } }}
               >
+                Add a scan, photo, or PDF and we will prepare a clean structured case draft for
+                review.
+              </Typography>
+              <Stack
+                direction="row"
+                spacing={1}
+                useFlexGap
+                flexWrap="wrap"
+                justifyContent="center"
+              >
+                <Chip label="JPG" size="small" />
+                <Chip label="PNG" size="small" />
+                <Chip label="WEBP" size="small" />
+                <Chip label="PDF" size="small" />
+              </Stack>
+            </Stack>
+
+            <Box
+              onDrop={handleDrop}
+              onDragOver={(event) => {
+                event.preventDefault();
+                setIsDragActive(true);
+              }}
+              onDragLeave={() => setIsDragActive(false)}
+              sx={{
+                border: "2px dashed",
+                borderColor: isDragActive ? "#1d4ed8" : "rgba(18,60,107,0.18)",
+                borderRadius: 4,
+                p: { xs: 3, sm: 4.5, md: 6 },
+                textAlign: "center",
+                bgcolor: isDragActive ? "rgba(29,78,216,0.05)" : "rgba(255,255,255,0.72)",
+                transition: "all 0.2s ease",
+              }}
+            >
+              <Stack spacing={2} alignItems="center">
                 <Box
                   sx={{
-                    width: { xs: "100%", md: "50%" },
-                    maxWidth: 760,
+                    width: 82,
+                    height: 82,
+                    borderRadius: "50%",
+                    display: "grid",
+                    placeItems: "center",
+                    background:
+                      "radial-gradient(circle at 35% 35%, rgba(29,78,216,0.16), rgba(15,118,110,0.08) 55%, rgba(255,255,255,0.5) 100%)",
+                    border: "1px solid rgba(29,78,216,0.12)",
                   }}
                 >
-                  <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 1.5 }}>
-                    <DescriptionRoundedIcon color="primary" />
-                    <Typography variant="body2" color="text.secondary">
-                      PDF preview shown below. OCR will render the PDF pages for extraction.
-                    </Typography>
-                  </Box>
-                  <Box
-                    component="iframe"
-                    src={previewUrl}
-                    title="Uploaded PDF preview"
-                    sx={{
-                      width: "100%",
-                      height: { xs: 320, md: 440 },
-                      border: "1px solid #d7dee6",
-                      borderRadius: 1.5,
-                      bgcolor: "#f8fafc",
-                    }}
-                  />
+                  <CloudUploadRoundedIcon color="primary" sx={{ fontSize: 40 }} />
                 </Box>
-              </Box>
-            )}
-            <Stack spacing={1} mt={2}>
-              <Box sx={{ display: "flex", alignItems: "center", gap: 1, flexWrap: "wrap" }}>
-                <DescriptionRoundedIcon color="primary" />
-                <Typography variant="body2" color="text.secondary">
-                  OCR currently supports JPG, PNG, WEBP, and PDF uploads.
-                </Typography>
-              </Box>
-            </Stack>
-          </CardContent>
-        </Card>
-      )}
 
-      <Box>
-        <Button
-          variant="contained"
-          size="large"
-          disabled={!uploadedFile || isStarting}
-          onClick={handleStartProcessing}
-          sx={{ width: { xs: "100%", sm: "auto" } }}
-        >
-          {isStarting ? "Starting..." : "Start Processing"}
-        </Button>
-        {startError && (
-          <Typography mt={1} color="error.main" variant="body2">
-            {startError}
-          </Typography>
-        )}
-      </Box>
+                <Stack spacing={0.8}>
+                  <Typography variant="h6">Drop your document here</Typography>
+                  <Typography color="text.secondary">
+                    or choose a file from your computer
+                  </Typography>
+                </Stack>
+
+                <input
+                  ref={inputRef}
+                  type="file"
+                  hidden
+                  accept=".jpg,.jpeg,.png,.webp,.pdf,image/jpeg,image/png,image/webp,application/pdf"
+                  onChange={(event) => {
+                    handleFile(event.target.files?.[0]);
+                    event.target.value = "";
+                  }}
+                />
+                <Button
+                  variant="contained"
+                  size="large"
+                  onClick={() => inputRef.current?.click()}
+                  sx={{
+                    minWidth: 190,
+                    borderRadius: 999,
+                    px: 3.2,
+                    py: 1.2,
+                  }}
+                >
+                  Select Document
+                </Button>
+              </Stack>
+            </Box>
+
+            {uploadedFile && (
+              <Card
+                sx={{
+                  borderRadius: 3,
+                  bgcolor: "rgba(255,255,255,0.88)",
+                  borderColor: "rgba(18,60,107,0.12)",
+                  boxShadow: "none",
+                }}
+              >
+                <CardContent sx={{ p: { xs: 2.2, md: 3 } }}>
+                  <Stack spacing={2}>
+                    <Stack
+                      direction={{ xs: "column", md: "row" }}
+                      spacing={1.5}
+                      justifyContent="space-between"
+                      alignItems={{ xs: "flex-start", md: "center" }}
+                    >
+                      <Stack spacing={0.7}>
+                        <Typography variant="subtitle1" fontWeight={700}>
+                          Selected Document
+                        </Typography>
+                        <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap">
+                          <Chip
+                            icon={
+                              uploadedFile.type === "application/pdf" ? (
+                                <PictureAsPdfRoundedIcon />
+                              ) : (
+                                <InsertDriveFileRoundedIcon />
+                              )
+                            }
+                            label={uploadedFile.name}
+                            sx={{
+                              maxWidth: { xs: "100%", md: 420 },
+                              "& .MuiChip-label": {
+                                display: "block",
+                                overflow: "hidden",
+                                textOverflow: "ellipsis",
+                                whiteSpace: "nowrap",
+                              },
+                            }}
+                          />
+                          <Chip label={formatFileSize(uploadedFile.size)} variant="outlined" />
+                        </Stack>
+                      </Stack>
+
+                      <Button
+                        variant="contained"
+                        size="large"
+                        disabled={isStarting}
+                        onClick={handleStartProcessing}
+                        sx={{
+                          width: { xs: "100%", md: "auto" },
+                          minWidth: 180,
+                          borderRadius: 999,
+                        }}
+                      >
+                        {isStarting ? "Starting..." : "Start Processing"}
+                      </Button>
+                    </Stack>
+
+                    {uploadedFile.type.startsWith("image/") && previewUrl && (
+                      <Box
+                        component="img"
+                        src={previewUrl}
+                        alt="Uploaded CIF preview"
+                        sx={{
+                          width: "100%",
+                          maxHeight: 380,
+                          objectFit: "contain",
+                          borderRadius: 2,
+                          border: "1px solid rgba(18,60,107,0.10)",
+                          bgcolor: "#f8fafc",
+                        }}
+                      />
+                    )}
+
+                    {uploadedFile.type === "application/pdf" && previewUrl && (
+                      <Box sx={{ display: "flex", justifyContent: { xs: "center", md: "flex-start" } }}>
+                        <Box sx={{ width: { xs: "100%", md: "56%" }, maxWidth: 760 }}>
+                          <Stack direction="row" spacing={1} alignItems="center" mb={1.4}>
+                            <DescriptionRoundedIcon color="primary" />
+                            <Typography variant="body2" color="text.secondary">
+                              PDF preview
+                            </Typography>
+                          </Stack>
+                          <Box
+                            component="iframe"
+                            src={previewUrl}
+                            title="Uploaded PDF preview"
+                            sx={{
+                              width: "100%",
+                              height: { xs: 320, md: 420 },
+                              border: "1px solid rgba(18,60,107,0.10)",
+                              borderRadius: 2,
+                              bgcolor: "#f8fafc",
+                            }}
+                          />
+                        </Box>
+                      </Box>
+                    )}
+                  </Stack>
+                </CardContent>
+              </Card>
+            )}
+
+            {startError && (
+              <Typography color="error.main" variant="body2" textAlign="center">
+                {startError}
+              </Typography>
+            )}
+          </Stack>
+        </CardContent>
+      </Card>
     </Stack>
   );
 }

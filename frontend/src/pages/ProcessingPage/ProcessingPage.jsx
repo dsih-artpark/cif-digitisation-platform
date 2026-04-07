@@ -1,39 +1,32 @@
 import InsertDriveFileRoundedIcon from "@mui/icons-material/InsertDriveFileRounded";
-import { Alert, Box, Card, CardContent, Chip, Divider, LinearProgress, Stack, Typography } from "@mui/material";
+import AutorenewRoundedIcon from "@mui/icons-material/AutorenewRounded";
+import {
+  Alert,
+  Box,
+  Card,
+  CardContent,
+  Chip,
+  CircularProgress,
+  LinearProgress,
+  Stack,
+  Typography,
+} from "@mui/material";
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { getDigitizeJob } from "../../api/digitizeClient";
 import BackButton from "../../components/BackButton/BackButton";
-import ProcessingTimeline from "../../components/ProcessingTimeline/ProcessingTimeline";
-import { DEMO_ROLES } from "../../config/roleAccess";
 import { useCif } from "../../context/CifContext";
-
-const STEP_CONFIG = [
-  "Document Received",
-  "Image Pre-processing",
-  "Text Detection",
-  "Field Extraction",
-  "Structured Record Generation",
-];
 
 const QUALITY_REDIRECT_MESSAGES = [
   "The image is too dark. Please retake with better lighting.",
   "The image is too bright. Please avoid excessive lighting and retake.",
 ];
 
-function getFallbackNote(stepLabel) {
-  if (stepLabel === "Document Received") return "Validating file integrity and metadata";
-  if (stepLabel === "Image Pre-processing") return "Preparing image payload for extraction";
-  if (stepLabel === "Text Detection") return "Extracting text from document";
-  if (stepLabel === "Field Extraction") return "Mapping extracted text to CIF fields";
-  return "Generating final structured record";
-}
-
 function shouldRedirectToUpload(message = "") {
   return QUALITY_REDIRECT_MESSAGES.includes(message.trim());
 }
 
-function ProcessingPage({ activeRole = "" }) {
+function ProcessingPage() {
   const navigate = useNavigate();
   const {
     uploadedFile,
@@ -43,13 +36,7 @@ function ProcessingPage({ activeRole = "" }) {
     applyExtractionResult,
     markCurrentUploadStatus,
   } = useCif();
-  const isFrontLineWorker = activeRole === DEMO_ROLES.FRONT_LINE_WORKER;
-  const [activeStep, setActiveStep] = useState(0);
-  const [completed, setCompleted] = useState(Array(STEP_CONFIG.length).fill(false));
-  const [stepProgress, setStepProgress] = useState(0);
   const [progress, setProgress] = useState(0);
-  const [processingLog, setProcessingLog] = useState([]);
-  const [currentNote, setCurrentNote] = useState(getFallbackNote(STEP_CONFIG[0]));
 
   const pollIntervalRef = useRef(null);
   const navTimeoutRef = useRef(null);
@@ -81,35 +68,6 @@ function ProcessingPage({ activeRole = "" }) {
       }, 3000);
     };
 
-    const syncFromJob = (job) => {
-      const stageStates = Array.isArray(job?.stages) ? job.stages : [];
-      const completedFlags = STEP_CONFIG.map((_, index) => stageStates[index]?.status === "completed");
-      setCompleted(completedFlags);
-
-      let currentStepIndex = stageStates.findIndex((stage) => stage.status === "running");
-      if (currentStepIndex === -1) {
-        currentStepIndex = stageStates.findIndex((stage) => stage.status === "pending");
-      }
-      if (currentStepIndex === -1) {
-        currentStepIndex = Math.max(stageStates.length - 1, 0);
-      }
-
-      const stageLabel = STEP_CONFIG[currentStepIndex] || STEP_CONFIG[0];
-      const stageProgress = stageStates[currentStepIndex]?.progress || (completedFlags[currentStepIndex] ? 100 : 0);
-      const note = stageStates[currentStepIndex]?.note || getFallbackNote(stageLabel);
-
-      setActiveStep(currentStepIndex);
-      setStepProgress(stageProgress);
-      setProgress(job?.progress || 0);
-      setCurrentNote(note);
-      setProcessingLog(
-        (job?.logs || []).map((item) => {
-          const timestamp = item?.timestamp ? new Date(item.timestamp).toLocaleTimeString() : "--:--:--";
-          return `[${timestamp}] ${item?.message || ""}`;
-        })
-      );
-    };
-
     const stopPolling = () => {
       if (pollIntervalRef.current) {
         clearInterval(pollIntervalRef.current);
@@ -120,7 +78,7 @@ function ProcessingPage({ activeRole = "" }) {
     const pollJob = async () => {
       try {
         const job = await getDigitizeJob(processingJobId);
-        syncFromJob(job);
+        setProgress(job?.progress || 0);
 
         if (job.status === "completed" && !completionHandledRef.current) {
           completionHandledRef.current = true;
@@ -139,7 +97,6 @@ function ProcessingPage({ activeRole = "" }) {
         if (job.status === "failed") {
           stopPolling();
           const message = job?.error?.message || "Document processing failed. Please try again.";
-          setCurrentNote(message);
           setProcessingError(message);
           scheduleUploadRedirect(message);
           markCurrentUploadStatus({
@@ -151,7 +108,6 @@ function ProcessingPage({ activeRole = "" }) {
       } catch (error) {
         stopPolling();
         const message = error?.message || "Unable to fetch processing status.";
-        setCurrentNote(message);
         setProcessingError(message);
         scheduleUploadRedirect(message);
         markCurrentUploadStatus({
@@ -162,7 +118,7 @@ function ProcessingPage({ activeRole = "" }) {
       }
     };
 
-    pollJob();
+    void pollJob();
     pollIntervalRef.current = setInterval(pollJob, 1200);
 
     return () => {
@@ -189,12 +145,6 @@ function ProcessingPage({ activeRole = "" }) {
     <Stack spacing={3}>
       <Box>
         <BackButton fallbackPath="/upload" />
-        <Typography variant="h5">Document Processing Screen</Typography>
-        <Typography color="text.secondary">
-          {isFrontLineWorker
-            ? "Processing uploaded document for case extraction."
-            : "Processing uploaded document through real extraction workflow."}
-        </Typography>
       </Box>
 
       {processingError && (
@@ -203,58 +153,104 @@ function ProcessingPage({ activeRole = "" }) {
         </Alert>
       )}
 
-      <Card>
-        <CardContent>
-          <Stack
-            direction={{ xs: "column", md: "row" }}
-            spacing={1}
-            justifyContent="space-between"
-            alignItems={{ xs: "flex-start", md: "center" }}
-            mb={1}
-          >
-            <Typography variant="subtitle1" fontWeight={700}>
-              Processing Progress
-            </Typography>
-            <Chip icon={<InsertDriveFileRoundedIcon />} label={uploadedFile?.name || "No file"} size="small" />
-          </Stack>
-          <LinearProgress variant="determinate" value={progress} sx={{ mb: 1, height: 8, borderRadius: 10 }} />
-          <Typography variant="body2" color="text.secondary" mb={2}>
-            {progress}% complete
-          </Typography>
-          {!isFrontLineWorker && (
-            <>
-              <Divider sx={{ mb: 2 }} />
-              <ProcessingTimeline
-                steps={STEP_CONFIG}
-                activeStep={activeStep}
-                completed={completed}
-                stepProgress={stepProgress}
-                currentNote={currentNote}
-              />
-              <Box
-                sx={{
-                  mt: 2,
-                  p: 1.5,
-                  bgcolor: "#f6f8fb",
-                  border: "1px solid #d8e0ea",
-                  borderRadius: 1,
-                  maxHeight: 140,
-                  overflowY: "auto",
-                }}
+      <Card
+        sx={{
+          maxWidth: 780,
+          mx: "auto",
+          width: "100%",
+          borderRadius: 4,
+          overflow: "hidden",
+          background:
+            "linear-gradient(180deg, rgba(245,250,255,0.96) 0%, rgba(255,255,255,1) 52%, rgba(251,252,254,1) 100%)",
+          boxShadow: "0 24px 60px rgba(14, 47, 83, 0.10)",
+        }}
+      >
+        <Box
+          sx={{
+            height: 10,
+            background:
+              "linear-gradient(90deg, #0f766e 0%, #1d4ed8 45%, #7c3aed 100%)",
+          }}
+        />
+        <CardContent sx={{ px: { xs: 3, md: 6 }, py: { xs: 5, md: 7 } }}>
+          <Stack spacing={3} alignItems="center" textAlign="center">
+            <Box
+              sx={{
+                width: 90,
+                height: 90,
+                borderRadius: "50%",
+                display: "grid",
+                placeItems: "center",
+                background:
+                  "radial-gradient(circle at 30% 30%, rgba(29,78,216,0.18), rgba(15,118,110,0.08) 55%, rgba(255,255,255,0.4) 100%)",
+                border: "1px solid rgba(29,78,216,0.10)",
+              }}
+            >
+              <CircularProgress size={44} thickness={4.4} />
+            </Box>
+
+            <Stack spacing={1.2} alignItems="center">
+              <Typography variant="h4" sx={{ fontSize: { xs: "1.9rem", md: "2.35rem" } }}>
+                Analysing Document
+              </Typography>
+              <Typography
+                color="text.secondary"
+                sx={{ maxWidth: 560, fontSize: { xs: "0.98rem", md: "1.05rem" } }}
               >
-                <Typography variant="body2" fontWeight={700} mb={0.8}>
-                  Live Processor Log
+                Your CIF file is being processed securely. This usually takes a few moments.
+              </Typography>
+            </Stack>
+
+            <Chip
+              icon={<InsertDriveFileRoundedIcon />}
+              label={uploadedFile?.name || "Uploaded document"}
+              sx={{
+                maxWidth: "100%",
+                px: 1,
+                height: 38,
+                bgcolor: "rgba(18,60,107,0.06)",
+                border: "1px solid rgba(18,60,107,0.10)",
+                "& .MuiChip-label": {
+                  display: "block",
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                  whiteSpace: "nowrap",
+                },
+              }}
+            />
+
+            <Box sx={{ width: "100%", maxWidth: 520 }}>
+              <LinearProgress
+                variant="determinate"
+                value={Math.max(progress, 6)}
+                sx={{
+                  height: 10,
+                  borderRadius: 999,
+                  bgcolor: "rgba(18,60,107,0.10)",
+                  "& .MuiLinearProgress-bar": {
+                    borderRadius: 999,
+                    background: "linear-gradient(90deg, #0f766e 0%, #1d4ed8 100%)",
+                  },
+                }}
+              />
+              <Stack
+                direction="row"
+                justifyContent="space-between"
+                alignItems="center"
+                sx={{ mt: 1.2 }}
+              >
+                <Typography variant="body2" color="text.secondary">
+                  {progress}% complete
                 </Typography>
-                <Stack spacing={0.5}>
-                  {processingLog.slice(-5).map((item, index) => (
-                    <Typography variant="caption" color="text.secondary" key={`${item}-${index}`}>
-                      {item}
-                    </Typography>
-                  ))}
+                <Stack direction="row" spacing={0.6} alignItems="center">
+                  <AutorenewRoundedIcon sx={{ fontSize: 16, color: "text.secondary" }} />
+                  <Typography variant="body2" color="text.secondary">
+                    Please keep this page open
+                  </Typography>
                 </Stack>
-              </Box>
-            </>
-          )}
+              </Stack>
+            </Box>
+          </Stack>
         </CardContent>
       </Card>
     </Stack>
