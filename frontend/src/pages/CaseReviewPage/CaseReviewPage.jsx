@@ -53,7 +53,6 @@ function CaseReviewPage({ activeRole = "" }) {
     setFieldStatus,
     recordStatus,
     setRecordStatus,
-    extractionMetadata,
   } = useCif();
   const showValidationRules = activeRole === DEMO_ROLES.ADMIN;
 
@@ -219,7 +218,6 @@ function CaseReviewPage({ activeRole = "" }) {
           <CaseCard
             caseData={caseData}
             recordStatus={recordStatus}
-            extractionMetadata={extractionMetadata}
             uploadedFile={uploadedFile}
           />
         </Grid>

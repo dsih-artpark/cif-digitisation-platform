@@ -2,19 +2,6 @@ import DownloadRoundedIcon from "@mui/icons-material/DownloadRounded";
 import EditRoundedIcon from "@mui/icons-material/EditRounded";
 import { Box, Button, Card, CardContent, Chip, Stack, Typography } from "@mui/material";
 
-function formatFileSize(size = 0) {
-  if (!Number.isFinite(size) || size <= 0) return "N/A";
-  const units = ["B", "KB", "MB", "GB"];
-  let value = size;
-  let unitIndex = 0;
-  while (value >= 1024 && unitIndex < units.length - 1) {
-    value /= 1024;
-    unitIndex += 1;
-  }
-  const digits = unitIndex === 0 ? 0 : value >= 10 ? 1 : 2;
-  return `${value.toFixed(digits)} ${units[unitIndex]}`;
-}
-
 function sanitizeFileName(value = "cif-report") {
   return String(value)
     .replace(/\.[^.]+$/, "")
@@ -61,27 +48,10 @@ function wrapPdfLine(text, maxChars = 88) {
   return lines;
 }
 
-function buildReportLines({ caseData, recordStatus, extractionMetadata, uploadedFile }) {
-  const extractedAt = extractionMetadata?.extractedAt
-    ? new Date(extractionMetadata.extractedAt).toLocaleString()
-    : "N/A";
-  const model = extractionMetadata?.model || "N/A";
-
+function buildReportLines({ caseData }) {
   return [
-    "CIF Digitisation System",
     "Extracted Case Report",
     "",
-    `Record Status: ${recordStatus}`,
-    `Generated At: ${new Date().toLocaleString()}`,
-    `Extracted At: ${extractedAt}`,
-    `Model: ${model}`,
-    "",
-    "Source Document",
-    `File Name: ${uploadedFile?.name || "N/A"}`,
-    `File Type: ${uploadedFile?.type || "N/A"}`,
-    `File Size: ${formatFileSize(uploadedFile?.size || 0)}`,
-    "",
-    "Extracted Fields",
     `Patient Name: ${caseData.patientName}`,
     `Age: ${caseData.age}`,
     `Sex: ${caseData.sex}`,
@@ -186,15 +156,10 @@ function SummaryRow({ label, value }) {
   );
 }
 
-function CaseCard({ caseData, recordStatus, extractionMetadata, uploadedFile }) {
+function CaseCard({ caseData, recordStatus, uploadedFile }) {
   const chipColor = recordStatus === "Verified" ? "success" : "warning";
   const handleDownloadReport = () => {
-    const reportLines = buildReportLines({
-      caseData,
-      recordStatus,
-      extractionMetadata,
-      uploadedFile,
-    });
+    const reportLines = buildReportLines({ caseData });
     const blob = createPdfBlob(reportLines);
     const blobUrl = URL.createObjectURL(blob);
     const link = document.createElement("a");
