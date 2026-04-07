@@ -7,6 +7,8 @@ import { createDigitizeJob } from "../../api/digitizeClient";
 import BackButton from "../../components/BackButton/BackButton";
 import { useCif } from "../../context/CifContext";
 
+const SUPPORTED_IMAGE_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
+
 function UploadPage({ activeRole }) {
   const navigate = useNavigate();
   const inputRef = useRef(null);
@@ -30,17 +32,24 @@ function UploadPage({ activeRole }) {
     setStartError("");
     setProcessingError("");
     resetExtractionState();
+    setUploadedFile(null);
     if (previewUrl) {
       URL.revokeObjectURL(previewUrl);
     }
+    setPreviewUrl("");
+
+    if (!SUPPORTED_IMAGE_TYPES.has(file.type)) {
+      setStartError("Only JPG, PNG, and WEBP images are supported for OCR extraction.");
+      return;
+    }
+
     setUploadedFile(file);
     addUploadedDocument(file, activeRole);
-    if (file.type.startsWith("image/") || file.type === "application/pdf") {
+    if (file.type.startsWith("image/")) {
       const url = URL.createObjectURL(file);
       setPreviewUrl(url);
       return;
     }
-    setPreviewUrl("");
   };
 
   const handleDrop = (event) => {
@@ -108,6 +117,7 @@ function UploadPage({ activeRole }) {
               ref={inputRef}
               type="file"
               hidden
+              accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp"
               onChange={(event) => {
                 handleFile(event.target.files?.[0]);
                 event.target.value = "";
@@ -137,25 +147,14 @@ function UploadPage({ activeRole }) {
                 sx={{ maxHeight: 360, width: "100%", objectFit: "contain", borderRadius: 1 }}
               />
             )}
-            {uploadedFile.type === "application/pdf" && previewUrl && (
-              <Stack spacing={1.5}>
-                <Box sx={{ display: "flex", alignItems: "center", gap: 1, flexWrap: "wrap" }}>
-                  <DescriptionRoundedIcon color="primary" />
-                  <Typography>PDF document uploaded and ready for processing.</Typography>
-                </Box>
-                <Box
-                  component="iframe"
-                  src={previewUrl}
-                  title="PDF Preview"
-                  sx={{
-                    width: "100%",
-                    height: { xs: 300, sm: 360 },
-                    border: "1px solid #d7dee6",
-                    borderRadius: 1,
-                  }}
-                />
-              </Stack>
-            )}
+            <Stack spacing={1} mt={2}>
+              <Box sx={{ display: "flex", alignItems: "center", gap: 1, flexWrap: "wrap" }}>
+                <DescriptionRoundedIcon color="primary" />
+                <Typography variant="body2" color="text.secondary">
+                  OCR currently supports JPG, PNG, and WEBP image uploads.
+                </Typography>
+              </Box>
+            </Stack>
           </CardContent>
         </Card>
       )}

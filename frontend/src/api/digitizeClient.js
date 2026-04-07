@@ -4,8 +4,17 @@ const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "";
 
 function parseErrorMessage(payload, fallbackMessage) {
   if (!payload || typeof payload !== "object") return fallbackMessage;
+  if (typeof payload.detail === "string" && payload.detail.trim()) return payload.detail;
   if (typeof payload.message === "string" && payload.message.trim()) return payload.message;
   if (typeof payload.error === "string" && payload.error.trim()) return payload.error;
+  if (
+    payload.error &&
+    typeof payload.error === "object" &&
+    typeof payload.error.message === "string" &&
+    payload.error.message.trim()
+  ) {
+    return payload.error.message;
+  }
   return fallbackMessage;
 }
 

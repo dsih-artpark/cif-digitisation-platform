@@ -28,7 +28,7 @@ load_dotenv()
 
 PORT = int(os.getenv("API_PORT", "8787"))
 OPENROUTER_BASE_URL = os.getenv("OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1")
-MODEL_NAME = "anthropic/claude-sonnet-4.6"
+MODEL_NAME = os.getenv("OPENROUTER_MODEL", "anthropic/claude-sonnet-4.6").strip()
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 FRONTEND_DIR = PROJECT_ROOT / "frontend"
 FRONTEND_SOURCE_DIR = FRONTEND_DIR / "src"
@@ -62,7 +62,7 @@ STAGE_DEFINITIONS = [
     {
         "id": "text_detection",
         "label": "Text Detection",
-        "note": "Running multilingual OCR-style extraction with Qwen",
+        "note": f"Running multilingual OCR-style extraction with {MODEL_NAME}",
         "done_log": "Detected handwritten and printed text blocks",
         "expected_ms": 9000,
     },
@@ -580,7 +580,7 @@ def get_message_content(message: Any) -> str:
             parts.append(item)
         elif (
             isinstance(item, dict)
-            and item.get("type") == "text"
+            and item.get("type") in {"text", "output_text"}
             and isinstance(item.get("text"), str)
         ):
             parts.append(item["text"])
@@ -599,13 +599,19 @@ def strip_code_block(text: str) -> str:
 def parse_model_json(text: str) -> dict[str, Any]:
     cleaned = strip_code_block(text)
     try:
-        return json.loads(cleaned)
+        parsed = json.loads(cleaned)
     except json.JSONDecodeError:
         first_brace = cleaned.find("{")
         last_brace = cleaned.rfind("}")
         if first_brace >= 0 and last_brace > first_brace:
-            return json.loads(cleaned[first_brace : last_brace + 1])
-        raise HTTPException(status_code=502, detail="Model output was not valid JSON.") from None
+            parsed = json.loads(cleaned[first_brace : last_brace + 1])
+        else:
+            raise HTTPException(
+                status_code=502, detail="Model output was not valid JSON."
+            ) from None
+    if not isinstance(parsed, dict):
+        raise HTTPException(status_code=502, detail="Model output JSON must be an object.")
+    return parsed
 
 
 def has_multilingual_text(value: Any) -> bool:
@@ -658,17 +664,27 @@ def call_openrouter(payload: dict[str, Any], log_label: str) -> dict[str, Any]:
         )
 
     logger.info("OpenRouter request started | %s | model=%s", log_label, payload.get("model"))
-    response = requests.post(
-        f"{OPENROUTER_BASE_URL}/chat/completions",
-        headers={
-            "Authorization": f"Bearer {api_key}",
-            "Content-Type": "application/json",
-            "HTTP-Referer": f"http://localhost:{PORT}",
-            "X-Title": "CIF Digitisation Platform",
-        },
-        json=payload,
-        timeout=120,
-    )
+    try:
+        response = requests.post(
+            f"{OPENROUTER_BASE_URL}/chat/completions",
+            headers={
+                "Authorization": f"Bearer {api_key}",
+                "Content-Type": "application/json",
+                "HTTP-Referer": f"http://localhost:{PORT}",
+                "X-Title": "CIF Digitisation Platform",
+            },
+            json=payload,
+            timeout=120,
+        )
+    except requests.RequestException as exc:
+        logger.exception("OpenRouter request failed | %s", log_label)
+        raise HTTPException(
+            status_code=502,
+            detail=(
+                "Unable to reach OpenRouter for OCR extraction. "
+                "Check internet access, firewall rules, and OPENROUTER_BASE_URL."
+            ),
+        ) from exc
     try:
         response_payload = response.json()
     except ValueError as exc:
@@ -765,7 +781,8 @@ def validate_and_normalize_data_url(file_data_url: str, file_type: str) -> str:
 
     if normalized_mime not in ALLOWED_MIME_TYPES:
         raise HTTPException(
-            status_code=400, detail="Only JPG, PNG, and WEBP images are supported for extraction."
+            status_code=400,
+            detail="Only JPG, PNG, and WEBP images are supported for OCR extraction.",
         )
     if normalized_declared and normalized_declared != normalized_mime:
         raise HTTPException(

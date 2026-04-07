@@ -11,7 +11,6 @@ import { useCif } from "../../context/CifContext";
 const STEP_CONFIG = [
   "Document Received",
   "Image Pre-processing",
-  "Quality Assessment",
   "Text Detection",
   "Field Extraction",
   "Structured Record Generation",
@@ -34,7 +33,6 @@ function formatSeconds(totalMs) {
 function getFallbackNote(stepLabel) {
   if (stepLabel === "Document Received") return "Validating file integrity and metadata";
   if (stepLabel === "Image Pre-processing") return "Preparing image payload for extraction";
-  if (stepLabel === "Quality Assessment") return "Checking image clarity and lighting";
   if (stepLabel === "Text Detection") return "Extracting text from document";
   if (stepLabel === "Field Extraction") return "Mapping extracted text to CIF fields";
   return "Generating final structured record";
