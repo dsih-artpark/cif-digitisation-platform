@@ -189,13 +189,13 @@ function App() {
   }
 
   return (
-    <Box sx={{ minHeight: "100vh", bgcolor: "background.default" }}>
+    <Box sx={{ minHeight: "100vh", bgcolor: "background.default", overflowX: "clip" }}>
       {!isLandingPage && effectiveRole && <Navbar activeRole={effectiveRole} onSignOut={performSignOut} />}
       <Container
         maxWidth="xl"
         sx={{
           py: isLandingPage ? { xs: 0.5, md: 1 } : { xs: 2, md: 3 },
-          px: { xs: 1.5, sm: 2, md: 3 },
+          px: { xs: 1.25, sm: 2, md: 3 },
         }}
       >
         <Box key={location.pathname} className="page-fade">

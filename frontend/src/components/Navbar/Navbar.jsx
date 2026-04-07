@@ -31,7 +31,15 @@ function Navbar({ activeRole, onSignOut }) {
 
   return (
     <AppBar position="sticky" elevation={0} sx={{ bgcolor: "primary.dark" }}>
-      <Toolbar sx={{ minHeight: { xs: 60, md: 68 }, display: "flex", gap: 1.5, justifyContent: "space-between" }}>
+      <Toolbar
+        sx={{
+          minHeight: { xs: 60, md: 68 },
+          display: "flex",
+          gap: 1.5,
+          justifyContent: "space-between",
+          px: { xs: 1.5, sm: 2, md: 3 },
+        }}
+      >
         <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, minWidth: 0 }}>
           <Typography
             variant="h6"
@@ -39,6 +47,9 @@ function Navbar({ activeRole, onSignOut }) {
               mr: 0.5,
               fontSize: { xs: "1.05rem", md: "1.25rem" },
               lineHeight: 1.2,
+              whiteSpace: "nowrap",
+              overflow: "hidden",
+              textOverflow: "ellipsis",
             }}
           >
             CIF Digitisation System
@@ -107,7 +118,7 @@ function Navbar({ activeRole, onSignOut }) {
             </Drawer>
           </>
         ) : (
-          <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1 }}>
+          <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1, justifyContent: "flex-end" }}>
             {navItems.map((item) => (
               <Button
                 key={item.path}
@@ -118,6 +129,7 @@ function Navbar({ activeRole, onSignOut }) {
                 sx={{
                   borderColor: "rgba(255,255,255,0.4)",
                   color: "white",
+                  borderRadius: 999,
                   "&:hover": { bgcolor: "rgba(255,255,255,0.12)" },
                 }}
               >
@@ -132,6 +144,7 @@ function Navbar({ activeRole, onSignOut }) {
               sx={{
                 borderColor: "rgba(255,255,255,0.4)",
                 color: "white",
+                borderRadius: 999,
                 "&:hover": { bgcolor: "rgba(255,255,255,0.12)" },
               }}
             >

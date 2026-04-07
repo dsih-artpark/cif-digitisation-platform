@@ -121,7 +121,14 @@ function UploadPage({ activeRole }) {
   };
 
   return (
-    <Stack spacing={3}>
+    <Stack
+      spacing={3}
+      sx={{
+        width: "100%",
+        maxWidth: { xs: 760, lg: 1120 },
+        mx: "auto",
+      }}
+    >
       <Box>
         <BackButton fallbackPath="/" />
       </Box>
@@ -129,7 +136,7 @@ function UploadPage({ activeRole }) {
       <Card
         sx={{
           width: "100%",
-          maxWidth: 1240,
+          maxWidth: { xs: "100%", lg: 1080 },
           mx: "auto",
           borderRadius: 4,
           overflow: "hidden",
@@ -317,7 +324,7 @@ function UploadPage({ activeRole }) {
                           border: "1px solid rgba(18,60,107,0.10)",
                           borderRadius: 3,
                           bgcolor: "#f8fafc",
-                          minHeight: { xs: 320, md: 560 },
+                          minHeight: { xs: 260, sm: 320, md: 560 },
                           display: "flex",
                           alignItems: "center",
                           justifyContent: "center",
@@ -330,7 +337,7 @@ function UploadPage({ activeRole }) {
                           alt="Uploaded CIF preview"
                           sx={{
                             width: "100%",
-                            maxHeight: { xs: 320, md: 560 },
+                            maxHeight: { xs: 260, sm: 320, md: 560 },
                             objectFit: "contain",
                           }}
                         />
@@ -352,7 +359,7 @@ function UploadPage({ activeRole }) {
                           title={uploadedFile.name}
                           sx={{
                             width: "100%",
-                            height: { xs: 500, md: 860 },
+                            height: { xs: 380, sm: 500, md: 860 },
                             border: 0,
                             display: "block",
                             bgcolor: "#f8fafc",

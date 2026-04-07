@@ -142,7 +142,15 @@ function ProcessingPage() {
   ]);
 
   return (
-    <Stack spacing={3} sx={{ minHeight: "100%" }}>
+    <Stack
+      spacing={3}
+      sx={{
+        minHeight: "100%",
+        width: "100%",
+        maxWidth: { xs: 760, md: 820 },
+        mx: "auto",
+      }}
+    >
       <Box>
         <BackButton fallbackPath="/upload" />
       </Box>
@@ -158,7 +166,7 @@ function ProcessingPage() {
           minHeight: { xs: "calc(100vh - 250px)", md: "calc(100vh - 230px)" },
           display: "grid",
           placeItems: "center",
-          px: { xs: 0, md: 2 },
+          px: { xs: 0, md: 1.5 },
         }}
       >
         <Card
@@ -262,7 +270,8 @@ function ProcessingPage() {
                   }}
                 />
                 <Stack
-                  direction="row"
+                  direction={{ xs: "column", sm: "row" }}
+                  spacing={{ xs: 0.8, sm: 0 }}
                   justifyContent="space-between"
                   alignItems="center"
                   sx={{ mt: 1.2 }}
