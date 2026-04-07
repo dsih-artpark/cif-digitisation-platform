@@ -13,7 +13,7 @@ PORT = int(os.getenv("API_PORT", "8787"))
 OPENROUTER_BASE_URL = os.getenv("OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1")
 MODEL_NAME = os.getenv("OPENROUTER_MODEL", "anthropic/claude-sonnet-4.6").strip()
 
-PROJECT_ROOT = Path(__file__).resolve().parents[2]
+PROJECT_ROOT = Path(__file__).resolve().parents[3]
 FRONTEND_DIR = PROJECT_ROOT / "frontend"
 FRONTEND_SOURCE_DIR = FRONTEND_DIR / "src"
 FRONTEND_PUBLIC_DIR = FRONTEND_DIR / "public"
