@@ -10,7 +10,7 @@ import {
   Stack,
   Typography,
 } from "@mui/material";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { createDigitizeJob } from "../../api/digitizeClient";
 import BackButton from "../../components/BackButton/BackButton";
@@ -39,6 +39,7 @@ function formatFileSize(size = 0) {
 function UploadPage({ activeRole }) {
   const navigate = useNavigate();
   const inputRef = useRef(null);
+  const selectedDocumentRef = useRef(null);
   const [isDragActive, setIsDragActive] = useState(false);
   const [isStarting, setIsStarting] = useState(false);
   const [startError, setStartError] = useState("");
@@ -75,6 +76,18 @@ function UploadPage({ activeRole }) {
     const url = URL.createObjectURL(file);
     setPreviewUrl(url);
   };
+
+  useEffect(() => {
+    if (!uploadedFile || !selectedDocumentRef.current) return undefined;
+    const timer = window.setTimeout(() => {
+      selectedDocumentRef.current?.scrollIntoView({
+        behavior: "smooth",
+        block: "start",
+      });
+    }, 220);
+
+    return () => window.clearTimeout(timer);
+  }, [uploadedFile]);
 
   const handleDrop = (event) => {
     event.preventDefault();
@@ -116,6 +129,8 @@ function UploadPage({ activeRole }) {
       <Card
         sx={{
           width: "100%",
+          maxWidth: 1240,
+          mx: "auto",
           borderRadius: 4,
           overflow: "hidden",
           background:
@@ -225,11 +240,24 @@ function UploadPage({ activeRole }) {
 
             {uploadedFile && (
               <Card
+                ref={selectedDocumentRef}
                 sx={{
+                  scrollMarginTop: { xs: 92, md: 116 },
                   borderRadius: 3,
                   bgcolor: "rgba(255,255,255,0.88)",
                   borderColor: "rgba(18,60,107,0.12)",
                   boxShadow: "none",
+                  animation: "selectedCardReveal 0.45s ease",
+                  "@keyframes selectedCardReveal": {
+                    from: {
+                      opacity: 0,
+                      transform: "translateY(22px) scale(0.99)",
+                    },
+                    to: {
+                      opacity: 1,
+                      transform: "translateY(0) scale(1)",
+                    },
+                  },
                 }}
               >
                 <CardContent sx={{ p: { xs: 2.2, md: 3 } }}>
@@ -289,7 +317,7 @@ function UploadPage({ activeRole }) {
                           border: "1px solid rgba(18,60,107,0.10)",
                           borderRadius: 3,
                           bgcolor: "#f8fafc",
-                          minHeight: { xs: 300, md: 500 },
+                          minHeight: { xs: 320, md: 560 },
                           display: "flex",
                           alignItems: "center",
                           justifyContent: "center",
@@ -302,7 +330,7 @@ function UploadPage({ activeRole }) {
                           alt="Uploaded CIF preview"
                           sx={{
                             width: "100%",
-                            maxHeight: { xs: 300, md: 500 },
+                            maxHeight: { xs: 320, md: 560 },
                             objectFit: "contain",
                           }}
                         />
@@ -324,7 +352,7 @@ function UploadPage({ activeRole }) {
                           title={uploadedFile.name}
                           sx={{
                             width: "100%",
-                            height: { xs: 420, md: 720 },
+                            height: { xs: 500, md: 860 },
                             border: 0,
                             display: "block",
                             bgcolor: "#f8fafc",

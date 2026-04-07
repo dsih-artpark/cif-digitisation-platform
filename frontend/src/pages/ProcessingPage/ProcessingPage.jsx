@@ -142,7 +142,7 @@ function ProcessingPage() {
   ]);
 
   return (
-    <Stack spacing={3}>
+    <Stack spacing={3} sx={{ minHeight: "100%" }}>
       <Box>
         <BackButton fallbackPath="/upload" />
       </Box>
@@ -153,106 +153,135 @@ function ProcessingPage() {
         </Alert>
       )}
 
-      <Card
+      <Box
         sx={{
-          maxWidth: 780,
-          mx: "auto",
-          width: "100%",
-          borderRadius: 4,
-          overflow: "hidden",
-          background:
-            "linear-gradient(180deg, rgba(245,250,255,0.96) 0%, rgba(255,255,255,1) 52%, rgba(251,252,254,1) 100%)",
-          boxShadow: "0 24px 60px rgba(14, 47, 83, 0.10)",
+          minHeight: { xs: "calc(100vh - 250px)", md: "calc(100vh - 230px)" },
+          display: "grid",
+          placeItems: "center",
+          px: { xs: 0, md: 2 },
         }}
       >
-        <Box
+        <Card
           sx={{
-            height: 10,
+            maxWidth: 780,
+            width: "100%",
+            borderRadius: 4,
+            overflow: "hidden",
             background:
-              "linear-gradient(90deg, #0f766e 0%, #1d4ed8 45%, #7c3aed 100%)",
+              "radial-gradient(circle at top center, rgba(29,78,216,0.14), transparent 30%), linear-gradient(180deg, rgba(245,250,255,0.99) 0%, rgba(255,255,255,1) 56%, rgba(250,252,255,1) 100%)",
+            boxShadow: "0 34px 90px rgba(14, 47, 83, 0.14)",
+            animation: "processingCardFloatIn 0.45s ease",
+            "@keyframes processingCardFloatIn": {
+              from: {
+                opacity: 0,
+                transform: "translateY(22px) scale(0.985)",
+              },
+              to: {
+                opacity: 1,
+                transform: "translateY(0) scale(1)",
+              },
+            },
           }}
-        />
-        <CardContent sx={{ px: { xs: 3, md: 6 }, py: { xs: 5, md: 7 } }}>
-          <Stack spacing={3} alignItems="center" textAlign="center">
-            <Box
-              sx={{
-                width: 90,
-                height: 90,
-                borderRadius: "50%",
-                display: "grid",
-                placeItems: "center",
-                background:
-                  "radial-gradient(circle at 30% 30%, rgba(29,78,216,0.18), rgba(15,118,110,0.08) 55%, rgba(255,255,255,0.4) 100%)",
-                border: "1px solid rgba(29,78,216,0.10)",
-              }}
-            >
-              <CircularProgress size={44} thickness={4.4} />
-            </Box>
-
-            <Stack spacing={1.2} alignItems="center">
-              <Typography variant="h4" sx={{ fontSize: { xs: "1.9rem", md: "2.35rem" } }}>
-                Analysing Document
-              </Typography>
-              <Typography
-                color="text.secondary"
-                sx={{ maxWidth: 560, fontSize: { xs: "0.98rem", md: "1.05rem" } }}
-              >
-                Your CIF file is being processed securely. This usually takes a few moments.
-              </Typography>
-            </Stack>
-
-            <Chip
-              icon={<InsertDriveFileRoundedIcon />}
-              label={uploadedFile?.name || "Uploaded document"}
-              sx={{
-                maxWidth: "100%",
-                px: 1,
-                height: 38,
-                bgcolor: "rgba(18,60,107,0.06)",
-                border: "1px solid rgba(18,60,107,0.10)",
-                "& .MuiChip-label": {
-                  display: "block",
-                  overflow: "hidden",
-                  textOverflow: "ellipsis",
-                  whiteSpace: "nowrap",
-                },
-              }}
-            />
-
-            <Box sx={{ width: "100%", maxWidth: 520 }}>
-              <LinearProgress
-                variant="determinate"
-                value={Math.max(progress, 6)}
+        >
+          <Box
+            sx={{
+              height: 10,
+              background:
+                "linear-gradient(90deg, #0f766e 0%, #1d4ed8 45%, #7c3aed 100%)",
+            }}
+          />
+          <CardContent sx={{ px: { xs: 3, md: 6 }, py: { xs: 5, md: 7 } }}>
+            <Stack spacing={3} alignItems="center" textAlign="center">
+              <Box
                 sx={{
-                  height: 10,
-                  borderRadius: 999,
-                  bgcolor: "rgba(18,60,107,0.10)",
-                  "& .MuiLinearProgress-bar": {
-                    borderRadius: 999,
-                    background: "linear-gradient(90deg, #0f766e 0%, #1d4ed8 100%)",
+                  width: 104,
+                  height: 104,
+                  borderRadius: "50%",
+                  display: "grid",
+                  placeItems: "center",
+                  background:
+                    "radial-gradient(circle at 30% 30%, rgba(29,78,216,0.18), rgba(15,118,110,0.08) 55%, rgba(255,255,255,0.45) 100%)",
+                  border: "1px solid rgba(29,78,216,0.10)",
+                  animation: "processingOrbPulse 2.2s ease-in-out infinite",
+                  "@keyframes processingOrbPulse": {
+                    "0%": { transform: "scale(1)", boxShadow: "0 0 0 rgba(29,78,216,0.08)" },
+                    "50%": {
+                      transform: "scale(1.04)",
+                      boxShadow: "0 14px 36px rgba(29,78,216,0.10)",
+                    },
+                    "100%": { transform: "scale(1)", boxShadow: "0 0 0 rgba(29,78,216,0.08)" },
+                  },
+                }}
+              >
+                <CircularProgress size={50} thickness={4.2} />
+              </Box>
+
+              <Stack spacing={1.2} alignItems="center">
+                <Typography variant="h4" sx={{ fontSize: { xs: "2rem", md: "2.5rem" } }}>
+                  Analysing Document
+                </Typography>
+                <Typography
+                  color="text.secondary"
+                  sx={{ maxWidth: 560, fontSize: { xs: "1rem", md: "1.06rem" } }}
+                >
+                  Your CIF file is being processed securely. Please wait a moment while we prepare
+                  the structured output.
+                </Typography>
+              </Stack>
+
+              <Chip
+                icon={<InsertDriveFileRoundedIcon />}
+                label={uploadedFile?.name || "Uploaded document"}
+                sx={{
+                  maxWidth: "100%",
+                  px: 1,
+                  height: 40,
+                  bgcolor: "rgba(18,60,107,0.06)",
+                  border: "1px solid rgba(18,60,107,0.10)",
+                  "& .MuiChip-label": {
+                    display: "block",
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                    whiteSpace: "nowrap",
                   },
                 }}
               />
-              <Stack
-                direction="row"
-                justifyContent="space-between"
-                alignItems="center"
-                sx={{ mt: 1.2 }}
-              >
-                <Typography variant="body2" color="text.secondary">
-                  {progress}% complete
-                </Typography>
-                <Stack direction="row" spacing={0.6} alignItems="center">
-                  <AutorenewRoundedIcon sx={{ fontSize: 16, color: "text.secondary" }} />
+
+              <Box sx={{ width: "100%", maxWidth: 540 }}>
+                <LinearProgress
+                  variant="determinate"
+                  value={Math.max(progress, 6)}
+                  sx={{
+                    height: 10,
+                    borderRadius: 999,
+                    bgcolor: "rgba(18,60,107,0.10)",
+                    "& .MuiLinearProgress-bar": {
+                      borderRadius: 999,
+                      background: "linear-gradient(90deg, #0f766e 0%, #1d4ed8 100%)",
+                    },
+                  }}
+                />
+                <Stack
+                  direction="row"
+                  justifyContent="space-between"
+                  alignItems="center"
+                  sx={{ mt: 1.2 }}
+                >
                   <Typography variant="body2" color="text.secondary">
-                    Please keep this page open
+                    {progress}% complete
                   </Typography>
+                  <Stack direction="row" spacing={0.6} alignItems="center">
+                    <AutorenewRoundedIcon sx={{ fontSize: 16, color: "text.secondary" }} />
+                    <Typography variant="body2" color="text.secondary">
+                      Please keep this page open
+                    </Typography>
+                  </Stack>
                 </Stack>
-              </Stack>
-            </Box>
-          </Stack>
-        </CardContent>
-      </Card>
+              </Box>
+            </Stack>
+          </CardContent>
+        </Card>
+      </Box>
     </Stack>
   );
 }
