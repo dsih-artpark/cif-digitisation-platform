@@ -37,8 +37,12 @@ def parse_data_url(file_data_url: str) -> tuple[str, bytes]:
 def build_image_data_url(image: Image.Image) -> str:
     buffer = io.BytesIO()
     image.save(buffer, format="JPEG", quality=88, optimize=True)
-    encoded = base64.b64encode(buffer.getvalue()).decode("ascii")
-    return f"data:image/jpeg;base64,{encoded}"
+    return build_data_url_from_bytes(buffer.getvalue(), "image/jpeg")
+
+
+def build_data_url_from_bytes(file_bytes: bytes, mime_type: str) -> str:
+    encoded = base64.b64encode(file_bytes).decode("ascii")
+    return f"data:{mime_type};base64,{encoded}"
 
 
 def convert_pdf_bytes_to_image_data_url(pdf_bytes: bytes) -> tuple[str, int]:

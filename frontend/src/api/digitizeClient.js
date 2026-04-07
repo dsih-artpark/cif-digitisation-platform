@@ -18,35 +18,19 @@ function parseErrorMessage(payload, fallbackMessage) {
   return fallbackMessage;
 }
 
-function fileToDataUrl(file) {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => {
-      if (typeof reader.result !== "string" || !reader.result.startsWith("data:")) {
-        reject(new Error("Unable to prepare file for upload."));
-        return;
-      }
-      resolve(reader.result);
-    };
-    reader.onerror = () => reject(new Error("Unable to read selected file."));
-    reader.readAsDataURL(file);
-  });
-}
-
 export async function createDigitizeJob(file) {
-  const fileDataUrl = await fileToDataUrl(file);
   const accessToken = getAccessToken();
+  const formData = new FormData();
+  formData.append("file", file, file.name);
+  formData.append("file_name", file.name);
+  formData.append("file_type", file.type || "application/octet-stream");
+
   const response = await fetch(`${API_BASE_URL}/api/digitize`, {
     method: "POST",
     headers: {
-      "Content-Type": "application/json",
       ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
     },
-    body: JSON.stringify({
-      fileName: file.name,
-      fileType: file.type,
-      fileDataUrl,
-    }),
+    body: formData,
   });
 
   const payload = await response.json().catch(() => ({}));
