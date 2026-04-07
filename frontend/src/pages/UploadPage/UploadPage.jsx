@@ -63,11 +63,8 @@ function UploadPage({ activeRole }) {
 
     setUploadedFile(file);
     addUploadedDocument(file, activeRole);
-    if (file.type.startsWith("image/")) {
-      const url = URL.createObjectURL(file);
-      setPreviewUrl(url);
-      return;
-    }
+    const url = URL.createObjectURL(file);
+    setPreviewUrl(url);
   };
 
   const handleDrop = (event) => {

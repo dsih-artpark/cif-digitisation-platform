@@ -17,6 +17,18 @@ def sanitize_value(value: Any) -> str:
     return text
 
 
+def flatten_text(value: Any) -> str:
+    if value is None:
+        return ""
+    if isinstance(value, str):
+        return value
+    if isinstance(value, list):
+        return " ".join(part for part in (flatten_text(item) for item in value) if part)
+    if isinstance(value, dict):
+        return " ".join(part for part in (flatten_text(item) for item in value.values()) if part)
+    return str(value)
+
+
 def first_available_value(raw_data: dict[str, Any], *keys: str) -> Any:
     for key in keys:
         if key in raw_data and raw_data.get(key) is not None:
@@ -92,29 +104,89 @@ def normalize_treatment(value: Any) -> str:
     return sanitize_value(value)
 
 
+def extract_age_and_sex_fallback(raw_data: dict[str, Any]) -> tuple[str, str]:
+    combined_text = " ".join(
+        flatten_text(raw_data.get(key))
+        for key in raw_data.keys()
+        if raw_data.get(key) is not None
+    )
+    combined_text = re.sub(r"\s+", " ", combined_text).strip()
+    if not combined_text:
+        return "N/A", "N/A"
+
+    age = "N/A"
+    sex = "N/A"
+
+    slash_match = re.search(
+        r"\b(\d{1,3})\s*[/|]\s*(male|female|other|m|f|o)\b", combined_text, flags=re.IGNORECASE
+    )
+    if slash_match:
+        age = normalize_age(slash_match.group(1))
+        sex = normalize_sex(slash_match.group(2))
+
+    if age == "N/A":
+        age_match = re.search(r"\bage\s*[:=-]?\s*(\d{1,3})\b", combined_text, flags=re.IGNORECASE)
+        if age_match:
+            age = normalize_age(age_match.group(1))
+
+    if age == "N/A":
+        year_match = re.search(r"\b(\d{1,3})\s*(?:years?|yrs?)\b", combined_text, flags=re.IGNORECASE)
+        if year_match:
+            age = normalize_age(year_match.group(1))
+
+    if sex == "N/A":
+        sex_match = re.search(
+            r"\b(?:sex|gender)\s*[:=-]?\s*(male|female|other|m|f|o)\b",
+            combined_text,
+            flags=re.IGNORECASE,
+        )
+        if sex_match:
+            sex = normalize_sex(sex_match.group(1))
+
+    return age, sex
+
+
 def normalize_extraction(raw_data: dict[str, Any]) -> dict[str, Any]:
+    fallback_age, fallback_sex = extract_age_and_sex_fallback(raw_data)
     case_data = {
         "patientName": sanitize_value(
-            first_available_value(raw_data, "patientName", "patient_name", "name")
+            first_available_value(raw_data, "patientName", "patient_name", "name", "fullName")
         ),
-        "age": normalize_age(first_available_value(raw_data, "age")),
-        "sex": normalize_sex(first_available_value(raw_data, "sex", "gender")),
+        "age": normalize_age(first_available_value(raw_data, "age", "patientAge", "ageYears"))
+        if first_available_value(raw_data, "age", "patientAge", "ageYears") is not None
+        else fallback_age,
+        "sex": normalize_sex(first_available_value(raw_data, "sex", "gender", "patientSex"))
+        if first_available_value(raw_data, "sex", "gender", "patientSex") is not None
+        else fallback_sex,
         "locationVillage": sanitize_value(
-            first_available_value(raw_data, "locationVillage", "location", "village")
+            first_available_value(raw_data, "locationVillage", "location", "village", "address")
         ),
         "testDate": normalize_date(
-            first_available_value(raw_data, "testDate", "test_date", "date")
+            first_available_value(raw_data, "testDate", "test_date", "date", "visitDate")
         ),
-        "testType": sanitize_value(first_available_value(raw_data, "testType", "test_type")),
+        "testType": sanitize_value(
+            first_available_value(raw_data, "testType", "test_type", "diagnosticTest")
+        ),
         "result": sanitize_value(
-            first_available_value(raw_data, "result", "testResult", "test_result")
+            first_available_value(raw_data, "result", "testResult", "test_result", "diagnosis")
         ),
-        "pathogen": sanitize_value(first_available_value(raw_data, "pathogen", "species")),
+        "pathogen": sanitize_value(
+            first_available_value(raw_data, "pathogen", "species", "parasite", "malariaType")
+        ),
         "treatment": normalize_treatment(
-            first_available_value(raw_data, "treatment", "medicines", "treatment_given")
+            first_available_value(
+                raw_data,
+                "treatment",
+                "medicines",
+                "treatment_given",
+                "medication",
+                "prescription",
+            )
         ),
-        "temperature": sanitize_value(first_available_value(raw_data, "temperature")),
-        "hbLevel": sanitize_value(first_available_value(raw_data, "hbLevel", "hb", "hb_level")),
+        "temperature": sanitize_value(first_available_value(raw_data, "temperature", "temp")),
+        "hbLevel": sanitize_value(
+            first_available_value(raw_data, "hbLevel", "hb", "hb_level", "haemoglobin")
+        ),
     }
     field_status = {
         key: ("Review Required" if value == "N/A" else "Verified")
