@@ -21,15 +21,6 @@ const QUALITY_REDIRECT_MESSAGES = [
   "The image is too bright. Please avoid excessive lighting and retake.",
 ];
 
-function formatSeconds(totalMs) {
-  const totalSeconds = Math.max(0, Math.ceil(totalMs / 1000));
-  const minutes = Math.floor(totalSeconds / 60)
-    .toString()
-    .padStart(2, "0");
-  const seconds = (totalSeconds % 60).toString().padStart(2, "0");
-  return `${minutes}:${seconds}`;
-}
-
 function getFallbackNote(stepLabel) {
   if (stepLabel === "Document Received") return "Validating file integrity and metadata";
   if (stepLabel === "Image Pre-processing") return "Preparing image payload for extraction";
@@ -57,8 +48,6 @@ function ProcessingPage({ activeRole = "" }) {
   const [completed, setCompleted] = useState(Array(STEP_CONFIG.length).fill(false));
   const [stepProgress, setStepProgress] = useState(0);
   const [progress, setProgress] = useState(0);
-  const [elapsedMs, setElapsedMs] = useState(0);
-  const [etaMs, setEtaMs] = useState(0);
   const [processingLog, setProcessingLog] = useState([]);
   const [currentNote, setCurrentNote] = useState(getFallbackNote(STEP_CONFIG[0]));
 
@@ -112,8 +101,6 @@ function ProcessingPage({ activeRole = "" }) {
       setActiveStep(currentStepIndex);
       setStepProgress(stageProgress);
       setProgress(job?.progress || 0);
-      setElapsedMs(job?.elapsedMs || 0);
-      setEtaMs(job?.etaMs || 0);
       setCurrentNote(note);
       setProcessingLog(
         (job?.logs || []).map((item) => {
@@ -228,11 +215,7 @@ function ProcessingPage({ activeRole = "" }) {
             <Typography variant="subtitle1" fontWeight={700}>
               Processing Progress
             </Typography>
-            <Stack direction="row" spacing={1} flexWrap="wrap">
-              <Chip icon={<InsertDriveFileRoundedIcon />} label={uploadedFile?.name || "No file"} size="small" />
-              <Chip label={`Elapsed: ${formatSeconds(elapsedMs)}`} size="small" />
-              <Chip label={`ETA: ${formatSeconds(etaMs)}`} color="primary" size="small" />
-            </Stack>
+            <Chip icon={<InsertDriveFileRoundedIcon />} label={uploadedFile?.name || "No file"} size="small" />
           </Stack>
           <LinearProgress variant="determinate" value={progress} sx={{ mb: 1, height: 8, borderRadius: 10 }} />
           <Typography variant="body2" color="text.secondary" mb={2}>

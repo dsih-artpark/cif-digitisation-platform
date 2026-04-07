@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import asyncio
+import base64
+import io
 import json
 import logging
 import os
@@ -15,6 +17,7 @@ from threading import Lock
 from typing import Any
 from uuid import uuid4
 
+import fitz
 import jwt
 import requests
 from dotenv import load_dotenv
@@ -22,6 +25,7 @@ from fastapi import BackgroundTasks, FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from jwt import InvalidTokenError, PyJWKClient
+from PIL import Image
 from pydantic import BaseModel
 
 load_dotenv()
@@ -82,7 +86,7 @@ STAGE_DEFINITIONS = [
     },
 ]
 
-ALLOWED_MIME_TYPES = {"image/jpeg", "image/jpg", "image/png", "image/webp"}
+ALLOWED_MIME_TYPES = {"image/jpeg", "image/jpg", "image/png", "image/webp", "application/pdf"}
 UNKNOWN_MARKERS = {
     "",
     "unknown",
@@ -629,7 +633,7 @@ def has_multilingual_text(value: Any) -> bool:
 def build_prompt() -> str:
     return "\n".join(
         [
-            "Extract malaria CIF fields from the document image.",
+            "Extract malaria CIF fields from the uploaded document.",
             "Important rules:",
             "1) Do not guess missing values. If a field is missing or unclear, return exactly 'N/A'.",
             "2) Return only valid JSON with this exact schema:",
@@ -762,7 +766,7 @@ def translate_extraction_to_english(extracted_json: dict[str, Any]) -> dict[str,
     return parse_model_json(content) if content else extracted_json
 
 
-def validate_and_normalize_data_url(file_data_url: str, file_type: str) -> str:
+def parse_data_url(file_data_url: str) -> tuple[str, bytes]:
     if not file_data_url.startswith("data:"):
         raise HTTPException(
             status_code=400, detail="Invalid file payload. Please upload a valid image."
@@ -771,10 +775,65 @@ def validate_and_normalize_data_url(file_data_url: str, file_type: str) -> str:
     header_match = re.match(r"^data:([^;]+);base64,", file_data_url, flags=re.IGNORECASE)
     if not header_match:
         raise HTTPException(
-            status_code=400, detail="Unsupported file encoding. Please upload a JPG/PNG/WEBP image."
+            status_code=400,
+            detail="Unsupported file encoding. Please upload a JPG, PNG, WEBP image, or PDF.",
         )
 
     mime_type = header_match.group(1).lower()
+    base64_payload = file_data_url[header_match.end() :]
+    try:
+        decoded_bytes = base64.b64decode(base64_payload, validate=True)
+    except (ValueError, TypeError) as exc:
+        raise HTTPException(
+            status_code=400, detail="Uploaded document could not be decoded."
+        ) from exc
+    return mime_type, decoded_bytes
+
+
+def build_image_data_url(image: Image.Image) -> str:
+    buffer = io.BytesIO()
+    image.save(buffer, format="JPEG", quality=88, optimize=True)
+    encoded = base64.b64encode(buffer.getvalue()).decode("ascii")
+    return f"data:image/jpeg;base64,{encoded}"
+
+
+def convert_pdf_bytes_to_image_data_url(pdf_bytes: bytes) -> tuple[str, int]:
+    try:
+        document = fitz.open(stream=pdf_bytes, filetype="pdf")
+    except RuntimeError as exc:
+        raise HTTPException(status_code=400, detail="Uploaded PDF could not be opened.") from exc
+
+    try:
+        page_count = document.page_count
+        if page_count == 0:
+            raise HTTPException(status_code=400, detail="Uploaded PDF does not contain any pages.")
+
+        rendered_images: list[Image.Image] = []
+        max_pages = min(page_count, 3)
+        zoom_matrix = fitz.Matrix(2, 2)
+
+        for index in range(max_pages):
+            page = document.load_page(index)
+            pixmap = page.get_pixmap(matrix=zoom_matrix, alpha=False)
+            image = Image.open(io.BytesIO(pixmap.tobytes("png"))).convert("RGB")
+            rendered_images.append(image)
+
+        total_height = sum(image.height for image in rendered_images)
+        max_width = max(image.width for image in rendered_images)
+        combined = Image.new("RGB", (max_width, total_height), "white")
+
+        current_top = 0
+        for image in rendered_images:
+            combined.paste(image, (0, current_top))
+            current_top += image.height
+
+        return build_image_data_url(combined), page_count
+    finally:
+        document.close()
+
+
+def validate_and_normalize_data_url(file_data_url: str, file_type: str) -> tuple[str, str]:
+    mime_type, file_bytes = parse_data_url(file_data_url)
     declared_type = (file_type or "").lower()
     normalized_declared = "image/jpeg" if declared_type == "image/jpg" else declared_type
     normalized_mime = "image/jpeg" if mime_type == "image/jpg" else mime_type
@@ -782,14 +841,19 @@ def validate_and_normalize_data_url(file_data_url: str, file_type: str) -> str:
     if normalized_mime not in ALLOWED_MIME_TYPES:
         raise HTTPException(
             status_code=400,
-            detail="Only JPG, PNG, and WEBP images are supported for OCR extraction.",
+            detail="Only JPG, PNG, WEBP images, and PDF files are supported for OCR extraction.",
         )
     if normalized_declared and normalized_declared != normalized_mime:
         raise HTTPException(
             status_code=400, detail="File type mismatch detected. Please re-upload a valid image."
         )
 
-    return file_data_url
+    if normalized_mime == "application/pdf":
+        converted_data_url, page_count = convert_pdf_bytes_to_image_data_url(file_bytes)
+        page_label = "page" if page_count == 1 else "pages"
+        return converted_data_url, f"PDF rendered for OCR from {page_count} {page_label}"
+
+    return file_data_url, f"{normalized_mime} payload validated for OCR extraction"
 
 
 async def process_job(job: dict[str, Any], payload: DigitizePayload) -> None:
@@ -807,7 +871,10 @@ async def process_job(job: dict[str, Any], payload: DigitizePayload) -> None:
         mark_stage_completed(job, 0)
 
         mark_stage_running(job, 1)
-        normalized_data_url = validate_and_normalize_data_url(payload.fileDataUrl, payload.fileType)
+        normalized_data_url, preprocessing_message = validate_and_normalize_data_url(
+            payload.fileDataUrl, payload.fileType
+        )
+        append_log(job, preprocessing_message)
         mark_stage_completed(job, 1)
 
         mark_stage_running(job, 2)

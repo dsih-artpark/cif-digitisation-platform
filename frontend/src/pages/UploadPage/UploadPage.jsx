@@ -7,7 +7,25 @@ import { createDigitizeJob } from "../../api/digitizeClient";
 import BackButton from "../../components/BackButton/BackButton";
 import { useCif } from "../../context/CifContext";
 
-const SUPPORTED_IMAGE_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
+const SUPPORTED_DOCUMENT_TYPES = new Set([
+  "image/jpeg",
+  "image/png",
+  "image/webp",
+  "application/pdf",
+]);
+
+function formatFileSize(size = 0) {
+  if (!Number.isFinite(size) || size <= 0) return "0 KB";
+  const units = ["B", "KB", "MB", "GB"];
+  let value = size;
+  let unitIndex = 0;
+  while (value >= 1024 && unitIndex < units.length - 1) {
+    value /= 1024;
+    unitIndex += 1;
+  }
+  const digits = unitIndex === 0 ? 0 : value >= 10 ? 1 : 2;
+  return `${value.toFixed(digits)} ${units[unitIndex]}`;
+}
 
 function UploadPage({ activeRole }) {
   const navigate = useNavigate();
@@ -38,8 +56,8 @@ function UploadPage({ activeRole }) {
     }
     setPreviewUrl("");
 
-    if (!SUPPORTED_IMAGE_TYPES.has(file.type)) {
-      setStartError("Only JPG, PNG, and WEBP images are supported for OCR extraction.");
+    if (!SUPPORTED_DOCUMENT_TYPES.has(file.type)) {
+      setStartError("Only JPG, PNG, WEBP images, and PDF files are supported.");
       return;
     }
 
@@ -117,7 +135,7 @@ function UploadPage({ activeRole }) {
               ref={inputRef}
               type="file"
               hidden
-              accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp"
+              accept=".jpg,.jpeg,.png,.webp,.pdf,image/jpeg,image/png,image/webp,application/pdf"
               onChange={(event) => {
                 handleFile(event.target.files?.[0]);
                 event.target.value = "";
@@ -139,6 +157,9 @@ function UploadPage({ activeRole }) {
             <Typography variant="body2" color="text.secondary" mb={2}>
               File: {uploadedFile.name}
             </Typography>
+            <Typography variant="body2" color="text.secondary" mb={2}>
+              Size: {formatFileSize(uploadedFile.size)}
+            </Typography>
             {uploadedFile.type.startsWith("image/") && previewUrl && (
               <Box
                 component="img"
@@ -147,11 +168,46 @@ function UploadPage({ activeRole }) {
                 sx={{ maxHeight: 360, width: "100%", objectFit: "contain", borderRadius: 1 }}
               />
             )}
+            {uploadedFile.type === "application/pdf" && previewUrl && (
+              <Box
+                sx={{
+                  width: "100%",
+                  display: "flex",
+                  justifyContent: { xs: "center", md: "flex-start" },
+                }}
+              >
+                <Box
+                  sx={{
+                    width: { xs: "100%", md: "50%" },
+                    maxWidth: 760,
+                  }}
+                >
+                  <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 1.5 }}>
+                    <DescriptionRoundedIcon color="primary" />
+                    <Typography variant="body2" color="text.secondary">
+                      PDF preview shown below. OCR will render the PDF pages for extraction.
+                    </Typography>
+                  </Box>
+                  <Box
+                    component="iframe"
+                    src={previewUrl}
+                    title="Uploaded PDF preview"
+                    sx={{
+                      width: "100%",
+                      height: { xs: 320, md: 440 },
+                      border: "1px solid #d7dee6",
+                      borderRadius: 1.5,
+                      bgcolor: "#f8fafc",
+                    }}
+                  />
+                </Box>
+              </Box>
+            )}
             <Stack spacing={1} mt={2}>
               <Box sx={{ display: "flex", alignItems: "center", gap: 1, flexWrap: "wrap" }}>
                 <DescriptionRoundedIcon color="primary" />
                 <Typography variant="body2" color="text.secondary">
-                  OCR currently supports JPG, PNG, and WEBP image uploads.
+                  OCR currently supports JPG, PNG, WEBP, and PDF uploads.
                 </Typography>
               </Box>
             </Stack>
