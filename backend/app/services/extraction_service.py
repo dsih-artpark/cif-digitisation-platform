@@ -47,13 +47,18 @@ def strip_code_block(text: str) -> str:
 
 def parse_model_json(text: str) -> dict[str, Any]:
     cleaned = strip_code_block(text)
+    decoder = json.JSONDecoder()
     try:
         parsed = json.loads(cleaned)
     except json.JSONDecodeError:
         first_brace = cleaned.find("{")
-        last_brace = cleaned.rfind("}")
-        if first_brace >= 0 and last_brace > first_brace:
-            parsed = json.loads(cleaned[first_brace : last_brace + 1])
+        if first_brace >= 0:
+            try:
+                parsed, _ = decoder.raw_decode(cleaned[first_brace:])
+            except json.JSONDecodeError:
+                raise HTTPException(
+                    status_code=502, detail="Model output was not valid JSON."
+                ) from None
         else:
             raise HTTPException(
                 status_code=502, detail="Model output was not valid JSON."
