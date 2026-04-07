@@ -45,6 +45,12 @@ def build_data_url_from_bytes(file_bytes: bytes, mime_type: str) -> str:
     return f"data:{mime_type};base64,{encoded}"
 
 
+def downscale_image(image: Image.Image, max_width: int, max_height: int) -> Image.Image:
+    copy = image.copy()
+    copy.thumbnail((max_width, max_height), Image.Resampling.LANCZOS)
+    return copy
+
+
 def convert_pdf_bytes_to_image_data_url(pdf_bytes: bytes) -> tuple[str, int]:
     try:
         import fitz
@@ -65,8 +71,8 @@ def convert_pdf_bytes_to_image_data_url(pdf_bytes: bytes) -> tuple[str, int]:
             raise HTTPException(status_code=400, detail="Uploaded PDF does not contain any pages.")
 
         rendered_images: list[Image.Image] = []
-        max_pages = min(page_count, 3)
-        zoom_matrix = fitz.Matrix(2, 2)
+        max_pages = min(page_count, 2)
+        zoom_matrix = fitz.Matrix(1.5, 1.5)
 
         for index in range(max_pages):
             page = document.load_page(index)
@@ -83,6 +89,7 @@ def convert_pdf_bytes_to_image_data_url(pdf_bytes: bytes) -> tuple[str, int]:
             combined.paste(image, (0, current_top))
             current_top += image.height
 
+        combined = downscale_image(combined, max_width=1600, max_height=2600)
         return build_image_data_url(combined), page_count
     finally:
         document.close()

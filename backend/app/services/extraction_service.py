@@ -14,6 +14,13 @@ from ..core.logging import logger
 def get_message_content(message: Any) -> str:
     if isinstance(message, str):
         return message
+    if isinstance(message, dict):
+        text = message.get("text")
+        if isinstance(text, str):
+            return text
+        if isinstance(text, dict) and isinstance(text.get("value"), str):
+            return text["value"]
+        return ""
     if not isinstance(message, list):
         return ""
 
@@ -21,12 +28,11 @@ def get_message_content(message: Any) -> str:
     for item in message:
         if isinstance(item, str):
             parts.append(item)
-        elif (
-            isinstance(item, dict)
-            and item.get("type") in {"text", "output_text"}
-            and isinstance(item.get("text"), str)
-        ):
-            parts.append(item["text"])
+        elif isinstance(item, dict) and item.get("type") in {"text", "output_text"}:
+            if isinstance(item.get("text"), str):
+                parts.append(item["text"])
+            elif isinstance(item.get("text"), dict) and isinstance(item["text"].get("value"), str):
+                parts.append(item["text"]["value"])
     return "\n".join(part for part in parts if part)
 
 
@@ -165,10 +171,15 @@ def call_openrouter_for_extraction(file_data_url: str) -> dict[str, Any]:
         ],
     }
     response_payload = call_openrouter(payload, "extraction")
-    content = get_message_content(
-        response_payload.get("choices", [{}])[0].get("message", {}).get("content")
-    )
+    first_choice = response_payload.get("choices", [{}])[0]
+    message = first_choice.get("message", {})
+    content = get_message_content(message.get("content"))
     if not content:
+        content = get_message_content(first_choice.get("text"))
+    if not content:
+        logger.warning(
+            "OpenRouter returned empty extraction content | payload=%s", response_payload
+        )
         raise HTTPException(status_code=502, detail="Model response was empty.")
     response = {"extracted": parse_model_json(content), "usage": response_payload.get("usage")}
     logger.info("Extraction result parsed successfully | %s", response["extracted"])
