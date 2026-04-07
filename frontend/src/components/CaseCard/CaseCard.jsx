@@ -24,7 +24,44 @@ function sanitizeFileName(value = "cif-report") {
     .toLowerCase();
 }
 
-function buildReportContent({ caseData, recordStatus, extractionMetadata, uploadedFile }) {
+function normalizePdfText(value = "") {
+  return String(value)
+    .replace(/°/g, " deg")
+    .normalize("NFKD")
+    .replace(/[^\x20-\x7E]/g, "");
+}
+
+function wrapPdfLine(text, maxChars = 88) {
+  const normalized = normalizePdfText(text).trim();
+  if (!normalized) return [""];
+
+  const words = normalized.split(/\s+/);
+  const lines = [];
+  let currentLine = "";
+
+  words.forEach((word) => {
+    const nextLine = currentLine ? `${currentLine} ${word}` : word;
+    if (nextLine.length <= maxChars) {
+      currentLine = nextLine;
+      return;
+    }
+    if (currentLine) {
+      lines.push(currentLine);
+      currentLine = word;
+      return;
+    }
+    lines.push(word.slice(0, maxChars));
+    currentLine = word.slice(maxChars);
+  });
+
+  if (currentLine) {
+    lines.push(currentLine);
+  }
+
+  return lines;
+}
+
+function buildReportLines({ caseData, recordStatus, extractionMetadata, uploadedFile }) {
   const extractedAt = extractionMetadata?.extractedAt
     ? new Date(extractionMetadata.extractedAt).toLocaleString()
     : "N/A";
@@ -57,7 +94,81 @@ function buildReportContent({ caseData, recordStatus, extractionMetadata, upload
     `Temperature: ${caseData.temperature}`,
     `HB Level: ${caseData.hbLevel}`,
     "",
-  ].join("\n");
+  ].flatMap((line) => wrapPdfLine(line));
+}
+
+function escapePdfText(value) {
+  return value.replace(/\\/g, "\\\\").replace(/\(/g, "\\(").replace(/\)/g, "\\)");
+}
+
+function createPdfBlob(lines) {
+  const linesPerPage = 40;
+  const lineChunks = [];
+  for (let index = 0; index < lines.length; index += linesPerPage) {
+    lineChunks.push(lines.slice(index, index + linesPerPage));
+  }
+
+  const fontObjectNumber = 3;
+  let nextObjectNumber = 4;
+  const pageEntries = [];
+  const contentEntries = [];
+
+  lineChunks.forEach((chunk) => {
+    const pageObjectNumber = nextObjectNumber++;
+    const contentObjectNumber = nextObjectNumber++;
+    pageEntries.push(pageObjectNumber);
+    contentEntries.push({ objectNumber: contentObjectNumber, lines: chunk, pageObjectNumber });
+  });
+
+  const objects = new Map();
+  objects.set(1, "<< /Type /Catalog /Pages 2 0 R >>");
+  objects.set(
+    2,
+    `<< /Type /Pages /Kids [${pageEntries.map((page) => `${page} 0 R`).join(" ")}] /Count ${pageEntries.length} >>`
+  );
+  objects.set(fontObjectNumber, "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>");
+
+  contentEntries.forEach(({ objectNumber, lines: chunk, pageObjectNumber }) => {
+    const commands = ["BT", "/F1 11 Tf", "14 TL", "50 770 Td"];
+    chunk.forEach((line, index) => {
+      if (index > 0) {
+        commands.push("T*");
+      }
+      commands.push(`(${escapePdfText(line)}) Tj`);
+    });
+    commands.push("ET");
+
+    const stream = commands.join("\n");
+    const streamLength = new TextEncoder().encode(stream).length;
+    objects.set(
+      objectNumber,
+      `<< /Length ${streamLength} >>\nstream\n${stream}\nendstream`
+    );
+    objects.set(
+      pageObjectNumber,
+      `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents ${objectNumber} 0 R /Resources << /Font << /F1 ${fontObjectNumber} 0 R >> >> >>`
+    );
+  });
+
+  const orderedObjectNumbers = Array.from(objects.keys()).sort((a, b) => a - b);
+  let pdf = "%PDF-1.4\n";
+  const offsets = [0];
+
+  orderedObjectNumbers.forEach((objectNumber) => {
+    offsets[objectNumber] = pdf.length;
+    pdf += `${objectNumber} 0 obj\n${objects.get(objectNumber)}\nendobj\n`;
+  });
+
+  const xrefOffset = pdf.length;
+  pdf += `xref\n0 ${orderedObjectNumbers.length + 1}\n`;
+  pdf += "0000000000 65535 f \n";
+  orderedObjectNumbers.forEach((objectNumber) => {
+    pdf += `${String(offsets[objectNumber]).padStart(10, "0")} 00000 n \n`;
+  });
+  pdf += `trailer\n<< /Size ${orderedObjectNumbers.length + 1} /Root 1 0 R >>\n`;
+  pdf += `startxref\n${xrefOffset}\n%%EOF`;
+
+  return new Blob([pdf], { type: "application/pdf" });
 }
 
 function SummaryRow({ label, value }) {
@@ -78,17 +189,17 @@ function SummaryRow({ label, value }) {
 function CaseCard({ caseData, recordStatus, extractionMetadata, uploadedFile }) {
   const chipColor = recordStatus === "Verified" ? "success" : "warning";
   const handleDownloadReport = () => {
-    const reportContent = buildReportContent({
+    const reportLines = buildReportLines({
       caseData,
       recordStatus,
       extractionMetadata,
       uploadedFile,
     });
-    const blob = new Blob([reportContent], { type: "text/plain;charset=utf-8" });
+    const blob = createPdfBlob(reportLines);
     const blobUrl = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = blobUrl;
-    link.download = `${sanitizeFileName(uploadedFile?.name || caseData.patientName || "cif-report")}-report.txt`;
+    link.download = `${sanitizeFileName(uploadedFile?.name || caseData.patientName || "cif-report")}-report.pdf`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
