@@ -1,5 +1,4 @@
 import CloudUploadRoundedIcon from "@mui/icons-material/CloudUploadRounded";
-import DescriptionRoundedIcon from "@mui/icons-material/DescriptionRounded";
 import InsertDriveFileRoundedIcon from "@mui/icons-material/InsertDriveFileRounded";
 import PictureAsPdfRoundedIcon from "@mui/icons-material/PictureAsPdfRounded";
 import {
@@ -116,8 +115,6 @@ function UploadPage({ activeRole }) {
 
       <Card
         sx={{
-          maxWidth: 980,
-          mx: "auto",
           width: "100%",
           borderRadius: 4,
           overflow: "hidden",
@@ -288,42 +285,51 @@ function UploadPage({ activeRole }) {
 
                     {uploadedFile.type.startsWith("image/") && previewUrl && (
                       <Box
-                        component="img"
-                        src={previewUrl}
-                        alt="Uploaded CIF preview"
                         sx={{
-                          width: "100%",
-                          maxHeight: 380,
-                          objectFit: "contain",
-                          borderRadius: 2,
                           border: "1px solid rgba(18,60,107,0.10)",
+                          borderRadius: 3,
                           bgcolor: "#f8fafc",
+                          minHeight: { xs: 300, md: 500 },
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          overflow: "hidden",
                         }}
-                      />
+                      >
+                        <Box
+                          component="img"
+                          src={previewUrl}
+                          alt="Uploaded CIF preview"
+                          sx={{
+                            width: "100%",
+                            maxHeight: { xs: 300, md: 500 },
+                            objectFit: "contain",
+                          }}
+                        />
+                      </Box>
                     )}
 
                     {uploadedFile.type === "application/pdf" && previewUrl && (
-                      <Box sx={{ display: "flex", justifyContent: { xs: "center", md: "flex-start" } }}>
-                        <Box sx={{ width: { xs: "100%", md: "56%" }, maxWidth: 760 }}>
-                          <Stack direction="row" spacing={1} alignItems="center" mb={1.4}>
-                            <DescriptionRoundedIcon color="primary" />
-                            <Typography variant="body2" color="text.secondary">
-                              PDF preview
-                            </Typography>
-                          </Stack>
-                          <Box
-                            component="iframe"
-                            src={previewUrl}
-                            title="Uploaded PDF preview"
-                            sx={{
-                              width: "100%",
-                              height: { xs: 320, md: 420 },
-                              border: "1px solid rgba(18,60,107,0.10)",
-                              borderRadius: 2,
-                              bgcolor: "#f8fafc",
-                            }}
-                          />
-                        </Box>
+                      <Box
+                        sx={{
+                          border: "1px solid rgba(18,60,107,0.10)",
+                          borderRadius: 3,
+                          bgcolor: "#f8fafc",
+                          overflow: "hidden",
+                        }}
+                      >
+                        <Box
+                          component="iframe"
+                          src={previewUrl}
+                          title={uploadedFile.name}
+                          sx={{
+                            width: "100%",
+                            height: { xs: 420, md: 720 },
+                            border: 0,
+                            display: "block",
+                            bgcolor: "#f8fafc",
+                          }}
+                        />
                       </Box>
                     )}
                   </Stack>
