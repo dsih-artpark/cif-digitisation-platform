@@ -10,7 +10,7 @@ RELOAD_PATTERNS = ["*.py", "*.js", "*.jsx", "*.ts", "*.tsx", "*.css", "*.html"]
 
 def run_server(port: int) -> None:
     uvicorn.run(
-        "backend.app:app",
+        "backend.app.main:app",
         host="0.0.0.0",
         port=port,
         reload=True,

@@ -1,0 +1,21 @@
+DocumentExtractor is a base class
+
+OpenRouerDocumentExtractor
+OpenAIDocumentExtractor
+SarvamDocumentExtractor
+
+
+model1_anthropic = OpenRouerDocumentExtractor(model="sonnet4.5")
+model2_qwen = OpenRouerDocumentExtractor(model="qwenV2")
+model3_anthropic = OpenRouerDocumentExtractor(model="sonnet4.5")
+
+model4_openai = OpenAIDocumentExtractor(model="gpt4.0")
+model5_openai = OpenAIDocumentExtractor(model="gpt3.5")
+model6_openai = OpenAIDocumentExtractor(model="gpt3.5")
+
+
+models  =[model1_anthropic,model2_qwen,model3_anthropic,model4_openai,model5_openai]
+
+for model in models:
+    document = model.extract_document("path/to/document")
+    save_as_pdf(document, "path/to/save/document.pdf")
