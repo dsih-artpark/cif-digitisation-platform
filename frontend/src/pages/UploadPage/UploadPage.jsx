@@ -36,6 +36,7 @@ function buildDebugDetails({
   stage,
   file,
   error,
+  networkProbe,
 }) {
   const session = typeof window !== "undefined" ? getStoredSession() : null;
   const authExpiry = session?.expiresAt
@@ -50,13 +51,55 @@ function buildDebugDetails({
     `Limit: ${formatFileSize(MAX_UPLOAD_FILE_SIZE)}`,
     `Token: ${session?.accessToken ? "present" : "missing"}`,
     `Token expiry: ${authExpiry}`,
+    `Navigator online: ${
+      typeof navigator !== "undefined" && typeof navigator.onLine === "boolean"
+        ? String(navigator.onLine)
+        : "unknown"
+    }`,
     `Current URL: ${typeof window !== "undefined" ? window.location.href : "n/a"}`,
     `User agent: ${typeof navigator !== "undefined" ? navigator.userAgent : "n/a"}`,
     `Error: ${error?.message || "none"}`,
     error?.stack ? `Stack: ${error.stack}` : "",
+    networkProbe ? `Network probe:\n${networkProbe}` : "",
   ]
     .filter(Boolean)
     .join("\n");
+}
+
+async function runNetworkProbe() {
+  const lines = [];
+
+  try {
+    const healthResponse = await fetch("/api/health", {
+      method: "GET",
+      cache: "no-store",
+    });
+    lines.push(`GET /api/health => ${healthResponse.status}`);
+  } catch (probeError) {
+    lines.push(
+      `GET /api/health => failed (${probeError?.name || "Error"}: ${
+        probeError?.message || "unknown"
+      })`
+    );
+  }
+
+  try {
+    const probeFormData = new FormData();
+    probeFormData.append("probe", "1");
+    const digitizeResponse = await fetch("/api/digitize", {
+      method: "POST",
+      body: probeFormData,
+    });
+    lines.push(`POST /api/digitize (no auth, probe body) => ${digitizeResponse.status}`);
+  } catch (probeError) {
+    lines.push(
+      `POST /api/digitize (no auth, probe body) => failed (${probeError?.name || "Error"}: ${
+        probeError?.message || "unknown"
+      })`
+    );
+  }
+
+  return lines.join("\n");
 }
 
 function UploadPage({ activeRole }) {
@@ -177,12 +220,14 @@ function UploadPage({ activeRole }) {
       navigate("/processing");
     } catch (error) {
       const message = error?.message || "Unable to start document processing.";
+      const networkProbe = await runNetworkProbe();
       setStartError(message);
       setDebugDetails(
         buildDebugDetails({
           stage: "start_processing",
           file: uploadedFile,
           error,
+          networkProbe,
         })
       );
       setProcessingError(message);
