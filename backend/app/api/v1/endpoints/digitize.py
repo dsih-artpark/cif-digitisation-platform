@@ -77,7 +77,7 @@ async def parse_digitize_payload(
 
         resolved_file_name = (file_name or file.filename or "").strip()
         resolved_file_type = resolve_uploaded_mime_type(
-            file_type, file.content_type, resolved_file_name
+            file_type, file.content_type, resolved_file_name, uploaded_bytes
         )
         if not resolved_file_type:
             raise HTTPException(

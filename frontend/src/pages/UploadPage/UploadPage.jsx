@@ -15,7 +15,7 @@ import { useNavigate } from "react-router-dom";
 import { createDigitizeJob } from "../../api/digitizeClient";
 import BackButton from "../../components/BackButton/BackButton";
 import { useCif } from "../../context/CifContext";
-import { withResolvedDocumentMimeType } from "../../utils/documentFile";
+import { prepareDocumentFile } from "../../utils/documentFile";
 
 function formatFileSize(size = 0) {
   if (!Number.isFinite(size) || size <= 0) return "0 KB";
@@ -49,7 +49,7 @@ function UploadPage({ activeRole }) {
     markCurrentUploadStatus,
   } = useCif();
 
-  const handleFile = (file) => {
+  const handleFile = async (file) => {
     if (!file) return;
     setStartError("");
     setProcessingError("");
@@ -60,7 +60,7 @@ function UploadPage({ activeRole }) {
     }
     setPreviewUrl("");
 
-    const normalizedFile = withResolvedDocumentMimeType(file);
+    const normalizedFile = await prepareDocumentFile(file);
     if (!normalizedFile) {
       setStartError("Only image files and PDF files are supported.");
       return;
@@ -88,7 +88,7 @@ function UploadPage({ activeRole }) {
     event.preventDefault();
     setIsDragActive(false);
     const file = event.dataTransfer.files?.[0];
-    handleFile(file);
+    void handleFile(file);
   };
 
   const handleStartProcessing = async () => {
@@ -218,7 +218,7 @@ function UploadPage({ activeRole }) {
                   hidden
                   accept="image/*,.pdf,application/pdf"
                   onChange={(event) => {
-                    handleFile(event.target.files?.[0]);
+                    void handleFile(event.target.files?.[0]);
                     event.target.value = "";
                   }}
                 />

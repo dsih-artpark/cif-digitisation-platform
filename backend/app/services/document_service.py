@@ -15,6 +15,16 @@ def normalize_mime_type(mime_type: str | None) -> str:
     normalized = (mime_type or "").strip().lower()
     if normalized == "image/jpg":
         return "image/jpeg"
+    if normalized == "image/pjpeg":
+        return "image/jpeg"
+    if normalized in {
+        "application/x-pdf",
+        "application/acrobat",
+        "applications/vnd.pdf",
+        "text/pdf",
+        "text/x-pdf",
+    }:
+        return "application/pdf"
     if normalized == "application/octet-stream":
         return ""
     return normalized
@@ -25,8 +35,36 @@ def guess_mime_type_from_filename(file_name: str | None) -> str:
     return normalize_mime_type(guessed_type)
 
 
+def guess_mime_type_from_bytes(file_bytes: bytes) -> str:
+    if file_bytes.startswith(b"%PDF"):
+        return "application/pdf"
+    if file_bytes.startswith(b"\xff\xd8\xff"):
+        return "image/jpeg"
+    if file_bytes.startswith(b"\x89PNG\r\n\x1a\n"):
+        return "image/png"
+    if file_bytes.startswith((b"GIF87a", b"GIF89a")):
+        return "image/gif"
+    if file_bytes.startswith(b"BM"):
+        return "image/bmp"
+    if len(file_bytes) >= 12 and file_bytes[:4] == b"RIFF" and file_bytes[8:12] == b"WEBP":
+        return "image/webp"
+    if len(file_bytes) >= 16 and file_bytes[4:12] == b"ftypavif":
+        return "image/avif"
+    if len(file_bytes) >= 16 and file_bytes[4:12] in {
+        b"ftypheic",
+        b"ftypheix",
+        b"ftypheif",
+        b"ftyphevc",
+        b"ftypheim",
+        b"ftypmif1",
+        b"ftypmsf1",
+    }:
+        return "image/heic"
+    return ""
+
+
 def resolve_uploaded_mime_type(
-    declared_type: str | None, fallback_type: str | None, file_name: str | None
+    declared_type: str | None, fallback_type: str | None, file_name: str | None, file_bytes: bytes
 ) -> str:
     normalized_declared = normalize_mime_type(declared_type)
     if normalized_declared:
@@ -36,7 +74,11 @@ def resolve_uploaded_mime_type(
     if normalized_fallback:
         return normalized_fallback
 
-    return guess_mime_type_from_filename(file_name)
+    guessed_from_name = guess_mime_type_from_filename(file_name)
+    if guessed_from_name:
+        return guessed_from_name
+
+    return guess_mime_type_from_bytes(file_bytes)
 
 
 def parse_data_url(file_data_url: str) -> tuple[str, bytes]:
