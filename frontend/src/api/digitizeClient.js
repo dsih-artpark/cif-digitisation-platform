@@ -1,5 +1,5 @@
 import { getAccessToken } from "./authClient";
-import { resolveDocumentMimeType } from "../utils/documentFile";
+import { resolveDocumentMimeType, MAX_UPLOAD_FILE_SIZE } from "../utils/documentFile";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "";
 
@@ -23,6 +23,15 @@ export async function createDigitizeJob(file) {
   const accessToken = getAccessToken();
   const formData = new FormData();
   const resolvedFileType = resolveDocumentMimeType(file) || file.type || "application/octet-stream";
+
+  if (file.size > MAX_UPLOAD_FILE_SIZE) {
+    const sizeMB = (file.size / (1024 * 1024)).toFixed(1);
+    const limitMB = Math.round(MAX_UPLOAD_FILE_SIZE / (1024 * 1024));
+    throw new Error(
+      `File is too large (${sizeMB} MB). Maximum size is ${limitMB} MB. Please use a smaller or lower-quality image.`
+    );
+  }
+
   formData.append("file", file, file.name);
   formData.append("file_name", file.name);
   formData.append("file_type", resolvedFileType);
@@ -36,9 +45,12 @@ export async function createDigitizeJob(file) {
       },
       body: formData,
     });
-  } catch (error) {
+  } catch (networkError) {
+    const isTimeout = networkError?.name === "AbortError" || networkError?.name === "TimeoutError";
     throw new Error(
-      "Unable to reach the upload service. Please check your internet connection and sign in again."
+      isTimeout
+        ? "Upload timed out. The file may be too large or your connection is slow. Please try again."
+        : "Unable to reach the upload service. Please check your connection and try again."
     );
   }
 

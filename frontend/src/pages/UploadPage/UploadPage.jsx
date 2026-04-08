@@ -62,7 +62,7 @@ function UploadPage({ activeRole }) {
 
     const normalizedFile = await prepareDocumentFile(file);
     if (!normalizedFile) {
-      setStartError("Only image files and PDF files are supported.");
+      setStartError("Unsupported file type. Please upload a JPG, PNG, WebP, HEIC, or PDF file.");
       return;
     }
 

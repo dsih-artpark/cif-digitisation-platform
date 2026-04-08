@@ -33,6 +33,61 @@ const EXTENSION_TO_MIME_TYPE = {
   ".pdf": "application/pdf",
 };
 
+export const MAX_UPLOAD_FILE_SIZE = 15 * 1024 * 1024;
+
+async function readFileHeaderBytes(file, byteCount = 16) {
+  try {
+    const slice = file.slice(0, Math.min(byteCount, file.size));
+    const buffer = await slice.arrayBuffer();
+    return new Uint8Array(buffer);
+  } catch {
+    return new Uint8Array(0);
+  }
+}
+
+function detectMimeTypeFromHeader(header) {
+  if (!header || header.length < 2) return "";
+  if (header[0] === 0x25 && header[1] === 0x50 && header[2] === 0x44 && header[3] === 0x46) {
+    return "application/pdf";
+  }
+  if (header[0] === 0xff && header[1] === 0xd8 && header[2] === 0xff) {
+    return "image/jpeg";
+  }
+  if (header[0] === 0x89 && header[1] === 0x50 && header[2] === 0x4e && header[3] === 0x47) {
+    return "image/png";
+  }
+  if (header[0] === 0x47 && header[1] === 0x49 && header[2] === 0x46) {
+    return "image/gif";
+  }
+  if (header[0] === 0x42 && header[1] === 0x4d) {
+    return "image/bmp";
+  }
+  if (
+    header.length >= 12 &&
+    header[0] === 0x52 && header[1] === 0x49 && header[2] === 0x46 && header[3] === 0x46 &&
+    header[8] === 0x57 && header[9] === 0x45 && header[10] === 0x42 && header[11] === 0x50
+  ) {
+    return "image/webp";
+  }
+  if (
+    header.length >= 12 &&
+    header[4] === 0x66 && header[5] === 0x74 && header[6] === 0x79 && header[7] === 0x70 &&
+    header[8] === 0x61 && header[9] === 0x76 && header[10] === 0x69 && header[11] === 0x66
+  ) {
+    return "image/avif";
+  }
+  if (
+    header.length >= 12 &&
+    header[4] === 0x66 && header[5] === 0x74 && header[6] === 0x79 && header[7] === 0x70
+  ) {
+    const brand = String.fromCharCode(header[8], header[9], header[10], header[11]);
+    if (["heic", "heix", "heif", "hevc", "heim", "mif1", "msf1"].includes(brand)) {
+      return "image/heic";
+    }
+  }
+  return "";
+}
+
 function normalizeMimeType(mimeType) {
   if (!mimeType) return "";
 
@@ -96,6 +151,32 @@ function loadImageFromFile(file) {
   });
 }
 
+async function convertImageToBlob(image, dimensionScale, quality) {
+  const maxWidth = Math.round(1800 * dimensionScale);
+  const maxHeight = Math.round(2400 * dimensionScale);
+  const scale = Math.min(maxWidth / image.width, maxHeight / image.height, 1);
+  const canvas = document.createElement("canvas");
+  canvas.width = Math.max(1, Math.round(image.width * scale));
+  canvas.height = Math.max(1, Math.round(image.height * scale));
+
+  const context = canvas.getContext("2d");
+  if (!context) {
+    throw new Error("Canvas is unavailable for image processing.");
+  }
+
+  context.fillStyle = "#ffffff";
+  context.fillRect(0, 0, canvas.width, canvas.height);
+  context.drawImage(image, 0, 0, canvas.width, canvas.height);
+
+  const blob = await new Promise((resolve) => {
+    canvas.toBlob((nextBlob) => resolve(nextBlob), "image/jpeg", quality);
+  });
+
+  canvas.width = 0;
+  canvas.height = 0;
+  return blob;
+}
+
 async function optimizeImageFile(file, resolvedMimeType) {
   const shouldKeepOriginal =
     file.size <= 3 * 1024 * 1024 &&
@@ -107,37 +188,34 @@ async function optimizeImageFile(file, resolvedMimeType) {
 
   try {
     const image = await loadImageFromFile(file);
-    const canvas = document.createElement("canvas");
-    const maxWidth = 1800;
-    const maxHeight = 2400;
-    const scale = Math.min(maxWidth / image.width, maxHeight / image.height, 1);
-    canvas.width = Math.max(1, Math.round(image.width * scale));
-    canvas.height = Math.max(1, Math.round(image.height * scale));
 
-    const context = canvas.getContext("2d");
-    if (!context) {
-      throw new Error("Canvas is unavailable for image processing.");
+    const compressionSteps = [
+      { dimensionScale: 1, quality: 0.88 },
+      { dimensionScale: 1, quality: 0.72 },
+      { dimensionScale: 0.7, quality: 0.72 },
+      { dimensionScale: 0.5, quality: 0.65 },
+    ];
+
+    let resultBlob = null;
+    for (const step of compressionSteps) {
+      try {
+        const blob = await convertImageToBlob(image, step.dimensionScale, step.quality);
+        if (blob && blob.size > 0) {
+          resultBlob = blob;
+          if (blob.size <= MAX_UPLOAD_FILE_SIZE) {
+            break;
+          }
+        }
+      } catch {
+        continue;
+      }
     }
 
-    context.fillStyle = "#ffffff";
-    context.fillRect(0, 0, canvas.width, canvas.height);
-    context.drawImage(image, 0, 0, canvas.width, canvas.height);
+    if (!resultBlob) {
+      throw new Error("Image conversion failed after all attempts.");
+    }
 
-    const blob = await new Promise((resolve, reject) => {
-      canvas.toBlob(
-        (nextBlob) => {
-          if (nextBlob) {
-            resolve(nextBlob);
-            return;
-          }
-          reject(new Error("Image conversion failed."));
-        },
-        "image/jpeg",
-        0.88
-      );
-    });
-
-    return new File([blob], buildFileNameWithExtension(file.name, ".jpg"), {
+    return new File([resultBlob], buildFileNameWithExtension(file.name, ".jpg"), {
       type: "image/jpeg",
       lastModified: file.lastModified,
     });
@@ -156,7 +234,12 @@ async function optimizeImageFile(file, resolvedMimeType) {
 export async function prepareDocumentFile(file) {
   if (!file) return null;
 
-  const resolvedMimeType = resolveDocumentMimeType(file);
+  let resolvedMimeType = resolveDocumentMimeType(file);
+  if (!resolvedMimeType) {
+    const header = await readFileHeaderBytes(file, 16);
+    resolvedMimeType = detectMimeTypeFromHeader(header);
+  }
+
   if (!resolvedMimeType) {
     return null;
   }
