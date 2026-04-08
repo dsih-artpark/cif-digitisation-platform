@@ -34,6 +34,7 @@ def frontend_build_is_stale() -> bool:
     if not FRONTEND_INDEX_FILE.exists():
         return True
 
+    env_dir = FRONTEND_DIR.parent
     source_last_modified = latest_modified_time(
         FRONTEND_SOURCE_DIR,
         FRONTEND_PUBLIC_DIR,
@@ -41,6 +42,10 @@ def frontend_build_is_stale() -> bool:
         FRONTEND_DIR / "package.json",
         FRONTEND_DIR / "package-lock.json",
         FRONTEND_DIR / "vite.config.js",
+        env_dir / ".env",
+        env_dir / ".env.local",
+        env_dir / ".env.development",
+        env_dir / ".env.production",
     )
     dist_last_modified = latest_modified_time(FRONTEND_DIST_DIR)
     return source_last_modified > dist_last_modified

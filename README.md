@@ -56,7 +56,7 @@ AUTH0_AUDIENCE=https://cifdigitisation-demo.artpark.ai/api
 AUTH0_ROLE_CLAIM=https://cifdigitisation-demo.artpark.ai/roles
 
 # Frontend
-VITE_API_BASE_URL=http://localhost:8787
+VITE_API_BASE_URL=
 VITE_AUTH0_DOMAIN=your-tenant.us.auth0.com
 VITE_AUTH0_CLIENT_ID=your_auth0_client_id
 VITE_AUTH0_AUDIENCE=https://cifdigitisation-demo.artpark.ai/api
@@ -67,6 +67,7 @@ VITE_AUTH0_ROLE_CLAIM=https://cifdigitisation-demo.artpark.ai/roles
 Notes:
 - The landing page keeps the role cards, and the login button now opens Auth0.
 - The signed-in user only enters the selected workspace if their Auth0 role matches that card.
+- Leave `VITE_API_BASE_URL` empty unless you intentionally need a different API host. The frontend uses same-origin `/api/...` calls, and the Vite dev server proxies those requests to `http://localhost:8787`.
 
 ## 3. Install Dependencies From Scratch
 

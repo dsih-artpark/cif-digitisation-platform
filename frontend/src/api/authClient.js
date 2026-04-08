@@ -1,11 +1,53 @@
 import { getAuth0RoleForAppRole } from "../config/roleAccess";
 
+function isLoopbackHost(hostname) {
+  return ["localhost", "127.0.0.1", "::1", "[::1]"].includes(String(hostname || "").toLowerCase());
+}
+
+function normalizeUrl(value) {
+  return String(value || "").trim().replace(/\/+$/, "");
+}
+
+function buildResolvedUrl(originUrl, configuredUrl) {
+  const normalizedPath = configuredUrl.pathname === "/" ? "" : configuredUrl.pathname.replace(/\/+$/, "");
+  return `${originUrl.origin}${normalizedPath}${configuredUrl.search}${configuredUrl.hash}`;
+}
+
+function resolveRuntimeUrl(value, fallback = "") {
+  const configuredValue = normalizeUrl(value);
+  const fallbackValue = normalizeUrl(fallback);
+  if (typeof window === "undefined") {
+    return configuredValue || fallbackValue;
+  }
+
+  if (!configuredValue) {
+    return fallbackValue;
+  }
+
+  try {
+    const configuredUrl = new URL(configuredValue, window.location.origin);
+    const currentUrl = new URL(window.location.origin);
+
+    if (isLoopbackHost(configuredUrl.hostname) && !isLoopbackHost(currentUrl.hostname)) {
+      return buildResolvedUrl(currentUrl, configuredUrl);
+    }
+
+    if (configuredUrl.origin === currentUrl.origin) {
+      return buildResolvedUrl(currentUrl, configuredUrl);
+    }
+
+    return normalizeUrl(configuredUrl.toString());
+  } catch {
+    return configuredValue;
+  }
+}
+
 const AUTH0_DOMAIN = import.meta.env.VITE_AUTH0_DOMAIN || "";
 const AUTH0_CLIENT_ID = import.meta.env.VITE_AUTH0_CLIENT_ID || "";
-const AUTH0_AUDIENCE = import.meta.env.VITE_AUTH0_AUDIENCE || "";
-const AUTH0_REDIRECT_URI = import.meta.env.VITE_AUTH0_REDIRECT_URI || window.location.origin;
+const AUTH0_AUDIENCE = resolveRuntimeUrl(import.meta.env.VITE_AUTH0_AUDIENCE);
+const AUTH0_REDIRECT_URI = resolveRuntimeUrl(import.meta.env.VITE_AUTH0_REDIRECT_URI, window.location.origin);
 const AUTH0_ROLE_CLAIM =
-  import.meta.env.VITE_AUTH0_ROLE_CLAIM ||
+  resolveRuntimeUrl(import.meta.env.VITE_AUTH0_ROLE_CLAIM) ||
   `${new URL(AUTH0_REDIRECT_URI).origin.replace(/\/$/, "")}/roles`;
 
 const AUTH_SESSION_KEY = "cif_auth0_session";

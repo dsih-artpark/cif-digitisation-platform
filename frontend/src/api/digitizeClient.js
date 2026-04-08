@@ -1,7 +1,39 @@
 import { getAccessToken } from "./authClient";
 import { resolveDocumentMimeType, MAX_UPLOAD_FILE_SIZE } from "../utils/documentFile";
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "";
+function isLoopbackHost(hostname) {
+  return ["localhost", "127.0.0.1", "::1", "[::1]"].includes(String(hostname || "").toLowerCase());
+}
+
+function normalizeBaseUrl(value) {
+  return String(value || "").trim().replace(/\/+$/, "");
+}
+
+function resolveApiBaseUrl() {
+  const configuredBaseUrl = normalizeBaseUrl(import.meta.env.VITE_API_BASE_URL);
+  if (!configuredBaseUrl || typeof window === "undefined") {
+    return configuredBaseUrl;
+  }
+
+  try {
+    const configuredUrl = new URL(configuredBaseUrl, window.location.origin);
+    const currentUrl = new URL(window.location.origin);
+
+    if (isLoopbackHost(configuredUrl.hostname) && !isLoopbackHost(currentUrl.hostname)) {
+      return "";
+    }
+
+    if (configuredUrl.origin === currentUrl.origin) {
+      return "";
+    }
+
+    return configuredBaseUrl;
+  } catch {
+    return configuredBaseUrl;
+  }
+}
+
+const API_BASE_URL = resolveApiBaseUrl();
 
 function parseErrorMessage(payload, fallbackMessage) {
   if (!payload || typeof payload !== "object") return fallbackMessage;
