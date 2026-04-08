@@ -7,7 +7,7 @@ from fastapi import APIRouter, BackgroundTasks, File, Form, HTTPException, Reque
 from ....api.deps import ensure_digitize_access
 from ....core.config import MODEL_NAME
 from ....schemas.digitize import DigitizePayload
-from ....services.document_service import build_data_url_from_bytes
+from ....services.document_service import build_data_url_from_bytes, resolve_uploaded_mime_type
 from ....services.job_service import build_snapshot, create_job, jobs, process_job
 from ....services.normalization_service import sanitize_value
 from ....utils.time_utils import now_iso
@@ -75,8 +75,10 @@ async def parse_digitize_payload(
         if not uploaded_bytes:
             raise HTTPException(status_code=400, detail="Uploaded file is empty.")
 
-        resolved_file_type = (file_type or file.content_type or "").strip().lower()
         resolved_file_name = (file_name or file.filename or "").strip()
+        resolved_file_type = resolve_uploaded_mime_type(
+            file_type, file.content_type, resolved_file_name
+        )
         if not resolved_file_type:
             raise HTTPException(
                 status_code=400, detail="Uploaded file type could not be determined."

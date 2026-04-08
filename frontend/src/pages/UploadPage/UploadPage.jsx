@@ -15,13 +15,7 @@ import { useNavigate } from "react-router-dom";
 import { createDigitizeJob } from "../../api/digitizeClient";
 import BackButton from "../../components/BackButton/BackButton";
 import { useCif } from "../../context/CifContext";
-
-const SUPPORTED_DOCUMENT_TYPES = new Set([
-  "image/jpeg",
-  "image/png",
-  "image/webp",
-  "application/pdf",
-]);
+import { withResolvedDocumentMimeType } from "../../utils/documentFile";
 
 function formatFileSize(size = 0) {
   if (!Number.isFinite(size) || size <= 0) return "0 KB";
@@ -66,14 +60,15 @@ function UploadPage({ activeRole }) {
     }
     setPreviewUrl("");
 
-    if (!SUPPORTED_DOCUMENT_TYPES.has(file.type)) {
+    const normalizedFile = withResolvedDocumentMimeType(file);
+    if (!normalizedFile) {
       setStartError("Only JPG, PNG, WEBP images, and PDF files are supported.");
       return;
     }
 
-    setUploadedFile(file);
-    addUploadedDocument(file, activeRole);
-    const url = URL.createObjectURL(file);
+    setUploadedFile(normalizedFile);
+    addUploadedDocument(normalizedFile, activeRole);
+    const url = URL.createObjectURL(normalizedFile);
     setPreviewUrl(url);
   };
 

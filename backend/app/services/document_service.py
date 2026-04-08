@@ -2,12 +2,41 @@ from __future__ import annotations
 
 import base64
 import io
+import mimetypes
 import re
 
 from fastapi import HTTPException
 from PIL import Image
 
 from ..core.config import ALLOWED_MIME_TYPES
+
+
+def normalize_mime_type(mime_type: str | None) -> str:
+    normalized = (mime_type or "").strip().lower()
+    if normalized == "image/jpg":
+        return "image/jpeg"
+    if normalized == "application/octet-stream":
+        return ""
+    return normalized
+
+
+def guess_mime_type_from_filename(file_name: str | None) -> str:
+    guessed_type, _ = mimetypes.guess_type((file_name or "").strip(), strict=False)
+    return normalize_mime_type(guessed_type)
+
+
+def resolve_uploaded_mime_type(
+    declared_type: str | None, fallback_type: str | None, file_name: str | None
+) -> str:
+    normalized_declared = normalize_mime_type(declared_type)
+    if normalized_declared:
+        return normalized_declared
+
+    normalized_fallback = normalize_mime_type(fallback_type)
+    if normalized_fallback:
+        return normalized_fallback
+
+    return guess_mime_type_from_filename(file_name)
 
 
 def parse_data_url(file_data_url: str) -> tuple[str, bytes]:
@@ -97,9 +126,8 @@ def convert_pdf_bytes_to_image_data_url(pdf_bytes: bytes) -> tuple[str, int]:
 
 def validate_and_normalize_data_url(file_data_url: str, file_type: str) -> tuple[str, str]:
     mime_type, file_bytes = parse_data_url(file_data_url)
-    declared_type = (file_type or "").lower()
-    normalized_declared = "image/jpeg" if declared_type == "image/jpg" else declared_type
-    normalized_mime = "image/jpeg" if mime_type == "image/jpg" else mime_type
+    normalized_declared = normalize_mime_type(file_type)
+    normalized_mime = normalize_mime_type(mime_type)
 
     if normalized_mime not in ALLOWED_MIME_TYPES:
         raise HTTPException(

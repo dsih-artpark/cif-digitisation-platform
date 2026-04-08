@@ -1,4 +1,5 @@
 import { getAccessToken } from "./authClient";
+import { resolveDocumentMimeType } from "../utils/documentFile";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "";
 
@@ -21,9 +22,10 @@ function parseErrorMessage(payload, fallbackMessage) {
 export async function createDigitizeJob(file) {
   const accessToken = getAccessToken();
   const formData = new FormData();
+  const resolvedFileType = resolveDocumentMimeType(file) || file.type || "application/octet-stream";
   formData.append("file", file, file.name);
   formData.append("file_name", file.name);
-  formData.append("file_type", file.type || "application/octet-stream");
+  formData.append("file_type", resolvedFileType);
 
   const response = await fetch(`${API_BASE_URL}/api/digitize`, {
     method: "POST",
