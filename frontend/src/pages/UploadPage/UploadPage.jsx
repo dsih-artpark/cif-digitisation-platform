@@ -62,7 +62,7 @@ function UploadPage({ activeRole }) {
 
     const normalizedFile = withResolvedDocumentMimeType(file);
     if (!normalizedFile) {
-      setStartError("Only JPG, PNG, WEBP images, and PDF files are supported.");
+      setStartError("Only image files and PDF files are supported.");
       return;
     }
 
@@ -167,9 +167,7 @@ function UploadPage({ activeRole }) {
                 flexWrap="wrap"
                 justifyContent="center"
               >
-                <Chip label="JPG" size="small" />
-                <Chip label="PNG" size="small" />
-                <Chip label="WEBP" size="small" />
+                <Chip label="Images" size="small" />
                 <Chip label="PDF" size="small" />
               </Stack>
             </Stack>
@@ -218,7 +216,7 @@ function UploadPage({ activeRole }) {
                   ref={inputRef}
                   type="file"
                   hidden
-                  accept=".jpg,.jpeg,.png,.webp,.pdf,image/jpeg,image/png,image/webp,application/pdf"
+                  accept="image/*,.pdf,application/pdf"
                   onChange={(event) => {
                     handleFile(event.target.files?.[0]);
                     event.target.value = "";

@@ -67,7 +67,18 @@ STAGE_DEFINITIONS: list[dict[str, Any]] = [
     },
 ]
 
-ALLOWED_MIME_TYPES = {"image/jpeg", "image/jpg", "image/png", "image/webp", "application/pdf"}
+ALLOWED_MIME_TYPES = {
+    "image/jpeg",
+    "image/jpg",
+    "image/png",
+    "image/webp",
+    "image/heic",
+    "image/heif",
+    "image/avif",
+    "image/bmp",
+    "image/gif",
+    "application/pdf",
+}
 UNKNOWN_MARKERS = {
     "",
     "unknown",

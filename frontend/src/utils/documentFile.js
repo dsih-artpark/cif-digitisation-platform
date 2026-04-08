@@ -2,14 +2,25 @@ const SUPPORTED_DOCUMENT_TYPES = new Set([
   "image/jpeg",
   "image/png",
   "image/webp",
+  "image/heic",
+  "image/heif",
+  "image/avif",
+  "image/bmp",
+  "image/gif",
   "application/pdf",
 ]);
 
 const EXTENSION_TO_MIME_TYPE = {
   ".jpg": "image/jpeg",
   ".jpeg": "image/jpeg",
+  ".jfif": "image/jpeg",
   ".png": "image/png",
   ".webp": "image/webp",
+  ".heic": "image/heic",
+  ".heif": "image/heif",
+  ".avif": "image/avif",
+  ".bmp": "image/bmp",
+  ".gif": "image/gif",
   ".pdf": "application/pdf",
 };
 
@@ -18,6 +29,9 @@ function normalizeMimeType(mimeType) {
 
   const normalized = mimeType.trim().toLowerCase();
   if (normalized === "image/jpg") {
+    return "image/jpeg";
+  }
+  if (normalized === "image/pjpeg") {
     return "image/jpeg";
   }
   if (normalized === "application/octet-stream") {
@@ -31,6 +45,9 @@ export function resolveDocumentMimeType(file) {
 
   const normalizedBrowserType = normalizeMimeType(file.type);
   if (SUPPORTED_DOCUMENT_TYPES.has(normalizedBrowserType)) {
+    return normalizedBrowserType;
+  }
+  if (normalizedBrowserType.startsWith("image/")) {
     return normalizedBrowserType;
   }
 

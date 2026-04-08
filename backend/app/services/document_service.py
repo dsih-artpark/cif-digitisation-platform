@@ -80,6 +80,37 @@ def downscale_image(image: Image.Image, max_width: int, max_height: int) -> Imag
     return copy
 
 
+def register_heif_support() -> None:
+    try:
+        from pillow_heif import register_heif_opener
+    except ImportError:
+        return
+
+    register_heif_opener()
+
+
+def convert_generic_image_bytes_to_image_data_url(
+    file_bytes: bytes, mime_type: str
+) -> tuple[str, str]:
+    register_heif_support()
+    try:
+        with Image.open(io.BytesIO(file_bytes)) as image:
+            normalized = image.convert("RGB")
+    except Exception as exc:
+        if mime_type in {"image/heic", "image/heif"}:
+            raise HTTPException(
+                status_code=400,
+                detail="This HEIC/HEIF image could not be processed. Please try a JPG, PNG, or PDF copy.",
+            ) from exc
+        raise HTTPException(
+            status_code=400,
+            detail="Uploaded image could not be processed. Please try another image or PDF file.",
+        ) from exc
+
+    normalized = downscale_image(normalized, max_width=2000, max_height=2600)
+    return build_image_data_url(normalized), f"{mime_type} converted to JPEG for OCR extraction"
+
+
 def convert_pdf_bytes_to_image_data_url(pdf_bytes: bytes) -> tuple[str, int]:
     try:
         import fitz
@@ -132,7 +163,7 @@ def validate_and_normalize_data_url(file_data_url: str, file_type: str) -> tuple
     if normalized_mime not in ALLOWED_MIME_TYPES:
         raise HTTPException(
             status_code=400,
-            detail="Only JPG, PNG, WEBP images, and PDF files are supported for OCR extraction.",
+            detail="Only image files and PDF files are supported for OCR extraction.",
         )
     if normalized_declared and normalized_declared != normalized_mime:
         raise HTTPException(
@@ -143,5 +174,8 @@ def validate_and_normalize_data_url(file_data_url: str, file_type: str) -> tuple
         converted_data_url, page_count = convert_pdf_bytes_to_image_data_url(file_bytes)
         page_label = "page" if page_count == 1 else "pages"
         return converted_data_url, f"PDF rendered for OCR from {page_count} {page_label}"
+
+    if normalized_mime not in {"image/jpeg", "image/jpg", "image/png", "image/webp"}:
+        return convert_generic_image_bytes_to_image_data_url(file_bytes, normalized_mime)
 
     return file_data_url, f"{normalized_mime} payload validated for OCR extraction"

@@ -27,13 +27,20 @@ export async function createDigitizeJob(file) {
   formData.append("file_name", file.name);
   formData.append("file_type", resolvedFileType);
 
-  const response = await fetch(`${API_BASE_URL}/api/digitize`, {
-    method: "POST",
-    headers: {
-      ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
-    },
-    body: formData,
-  });
+  let response;
+  try {
+    response = await fetch(`${API_BASE_URL}/api/digitize`, {
+      method: "POST",
+      headers: {
+        ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+      },
+      body: formData,
+    });
+  } catch (error) {
+    throw new Error(
+      "Unable to reach the upload service. Please check your internet connection and sign in again."
+    );
+  }
 
   const payload = await response.json().catch(() => ({}));
   if (!response.ok) {
