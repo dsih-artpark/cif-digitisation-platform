@@ -2,7 +2,6 @@ import CloudUploadRoundedIcon from "@mui/icons-material/CloudUploadRounded";
 import InsertDriveFileRoundedIcon from "@mui/icons-material/InsertDriveFileRounded";
 import PictureAsPdfRoundedIcon from "@mui/icons-material/PictureAsPdfRounded";
 import {
-  Alert,
   Box,
   Button,
   Card,
@@ -14,10 +13,9 @@ import {
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { createDigitizeJob } from "../../api/digitizeClient";
-import { getStoredSession } from "../../api/authClient";
 import BackButton from "../../components/BackButton/BackButton";
 import { useCif } from "../../context/CifContext";
-import { MAX_UPLOAD_FILE_SIZE, prepareDocumentFile } from "../../utils/documentFile";
+import { prepareDocumentFile } from "../../utils/documentFile";
 
 function formatFileSize(size = 0) {
   if (!Number.isFinite(size) || size <= 0) return "0 KB";
@@ -32,85 +30,13 @@ function formatFileSize(size = 0) {
   return `${value.toFixed(digits)} ${units[unitIndex]}`;
 }
 
-function buildDebugDetails({
-  stage,
-  file,
-  error,
-  networkProbe,
-}) {
-  const session = typeof window !== "undefined" ? getStoredSession() : null;
-  const authExpiry = session?.expiresAt
-    ? new Date(session.expiresAt).toISOString()
-    : "missing";
-
-  return [
-    `Stage: ${stage || "unknown"}`,
-    `File: ${file?.name || "none"}`,
-    `Type: ${file?.type || "unknown"}`,
-    `Size: ${formatFileSize(file?.size || 0)} (${file?.size || 0} bytes)`,
-    `Limit: ${formatFileSize(MAX_UPLOAD_FILE_SIZE)}`,
-    `Token: ${session?.accessToken ? "present" : "missing"}`,
-    `Token expiry: ${authExpiry}`,
-    `Navigator online: ${
-      typeof navigator !== "undefined" && typeof navigator.onLine === "boolean"
-        ? String(navigator.onLine)
-        : "unknown"
-    }`,
-    `Current URL: ${typeof window !== "undefined" ? window.location.href : "n/a"}`,
-    `User agent: ${typeof navigator !== "undefined" ? navigator.userAgent : "n/a"}`,
-    `Error: ${error?.message || "none"}`,
-    error?.stack ? `Stack: ${error.stack}` : "",
-    networkProbe ? `Network probe:\n${networkProbe}` : "",
-  ]
-    .filter(Boolean)
-    .join("\n");
-}
-
-async function runNetworkProbe() {
-  const lines = [];
-
-  try {
-    const healthResponse = await fetch("/api/health", {
-      method: "GET",
-      cache: "no-store",
-    });
-    lines.push(`GET /api/health => ${healthResponse.status}`);
-  } catch (probeError) {
-    lines.push(
-      `GET /api/health => failed (${probeError?.name || "Error"}: ${
-        probeError?.message || "unknown"
-      })`
-    );
-  }
-
-  try {
-    const probeFormData = new FormData();
-    probeFormData.append("probe", "1");
-    const digitizeResponse = await fetch("/api/digitize", {
-      method: "POST",
-      body: probeFormData,
-    });
-    lines.push(`POST /api/digitize (no auth, probe body) => ${digitizeResponse.status}`);
-  } catch (probeError) {
-    lines.push(
-      `POST /api/digitize (no auth, probe body) => failed (${probeError?.name || "Error"}: ${
-        probeError?.message || "unknown"
-      })`
-    );
-  }
-
-  return lines.join("\n");
-}
-
 function UploadPage({ activeRole }) {
   const navigate = useNavigate();
   const inputRef = useRef(null);
   const selectedDocumentRef = useRef(null);
-  const diagnosticRef = useRef(null);
   const [isDragActive, setIsDragActive] = useState(false);
   const [isStarting, setIsStarting] = useState(false);
   const [startError, setStartError] = useState("");
-  const [debugDetails, setDebugDetails] = useState("");
   const {
     uploadedFile,
     setUploadedFile,
@@ -126,7 +52,6 @@ function UploadPage({ activeRole }) {
   const handleFile = async (file) => {
     if (!file) return;
     setStartError("");
-    setDebugDetails("");
     setProcessingError("");
     resetExtractionState();
     setUploadedFile(null);
@@ -135,36 +60,16 @@ function UploadPage({ activeRole }) {
     }
     setPreviewUrl("");
 
-    try {
-      const normalizedFile = await prepareDocumentFile(file);
-      if (!normalizedFile) {
-        const message = "Unsupported file type. Please upload a JPG, PNG, WebP, HEIC, or PDF file.";
-        setStartError(message);
-        setDebugDetails(
-          buildDebugDetails({
-            stage: "prepare_document_file",
-            file,
-            error: new Error(message),
-          })
-        );
-        return;
-      }
-
-      setUploadedFile(normalizedFile);
-      addUploadedDocument(normalizedFile, activeRole);
-      const url = URL.createObjectURL(normalizedFile);
-      setPreviewUrl(url);
-    } catch (error) {
-      const message = error?.message || "Unable to read the selected file on this device.";
-      setStartError(message);
-      setDebugDetails(
-        buildDebugDetails({
-          stage: "prepare_document_file",
-          file,
-          error,
-        })
-      );
+    const normalizedFile = await prepareDocumentFile(file);
+    if (!normalizedFile) {
+      setStartError("Unsupported file type. Please upload a JPG, PNG, WebP, HEIC, or PDF file.");
+      return;
     }
+
+    setUploadedFile(normalizedFile);
+    addUploadedDocument(normalizedFile, activeRole);
+    const url = URL.createObjectURL(normalizedFile);
+    setPreviewUrl(url);
   };
 
   useEffect(() => {
@@ -179,18 +84,6 @@ function UploadPage({ activeRole }) {
     return () => window.clearTimeout(timer);
   }, [uploadedFile]);
 
-  useEffect(() => {
-    if (!startError || !diagnosticRef.current) return undefined;
-    const timer = window.setTimeout(() => {
-      diagnosticRef.current?.scrollIntoView({
-        behavior: "smooth",
-        block: "center",
-      });
-    }, 120);
-
-    return () => window.clearTimeout(timer);
-  }, [startError, debugDetails]);
-
   const handleDrop = (event) => {
     event.preventDefault();
     setIsDragActive(false);
@@ -201,35 +94,17 @@ function UploadPage({ activeRole }) {
   const handleStartProcessing = async () => {
     if (!uploadedFile || isStarting) return;
     setStartError("");
-    setDebugDetails("");
     setProcessingError("");
     setIsStarting(true);
     markCurrentUploadStatus({ extractionStatus: "Processing" });
 
     try {
-      if (uploadedFile.size > MAX_UPLOAD_FILE_SIZE) {
-        const limitMB = Math.round(MAX_UPLOAD_FILE_SIZE / (1024 * 1024));
-        const sizeMB = (uploadedFile.size / (1024 * 1024)).toFixed(1);
-        throw new Error(
-          `File is too large (${sizeMB} MB). Maximum size is ${limitMB} MB. Please use a smaller or lower-quality image.`
-        );
-      }
-
       const jobId = await createDigitizeJob(uploadedFile);
       setProcessingJobId(jobId);
       navigate("/processing");
     } catch (error) {
       const message = error?.message || "Unable to start document processing.";
-      const networkProbe = await runNetworkProbe();
       setStartError(message);
-      setDebugDetails(
-        buildDebugDetails({
-          stage: "start_processing",
-          file: uploadedFile,
-          error,
-          networkProbe,
-        })
-      );
       setProcessingError(message);
       markCurrentUploadStatus({
         extractionStatus: "Failed",
@@ -296,52 +171,6 @@ function UploadPage({ activeRole }) {
                 <Chip label="PDF" size="small" />
               </Stack>
             </Stack>
-
-            {startError && (
-              <Stack ref={diagnosticRef} spacing={1.25}>
-                <Alert severity="error" variant="outlined">
-                  {startError}
-                </Alert>
-                {debugDetails && (
-                  <Box
-                    component="details"
-                    open
-                    sx={{
-                      border: "1px solid rgba(185, 28, 28, 0.18)",
-                      borderRadius: 3,
-                      bgcolor: "rgba(254, 242, 242, 0.92)",
-                      px: 1.8,
-                      py: 1.35,
-                    }}
-                  >
-                    <Box
-                      component="summary"
-                      sx={{
-                        cursor: "pointer",
-                        fontWeight: 700,
-                        color: "#991b1b",
-                        mb: 1,
-                      }}
-                    >
-                      Mobile diagnostic details
-                    </Box>
-                    <Typography
-                      component="pre"
-                      variant="body2"
-                      sx={{
-                        m: 0,
-                        whiteSpace: "pre-wrap",
-                        wordBreak: "break-word",
-                        fontFamily: "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
-                        color: "#7f1d1d",
-                      }}
-                    >
-                      {debugDetails}
-                    </Typography>
-                  </Box>
-                )}
-              </Stack>
-            )}
 
             <Box
               onDrop={handleDrop}
@@ -536,6 +365,11 @@ function UploadPage({ activeRole }) {
               </Card>
             )}
 
+            {startError && (
+              <Typography color="error.main" variant="body2" textAlign="center">
+                {startError}
+              </Typography>
+            )}
           </Stack>
         </CardContent>
       </Card>

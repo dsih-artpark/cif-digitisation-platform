@@ -176,6 +176,10 @@ npm run build
 cd ..
 ```
 
+FastAPI-only deployment note:
+- Nginx is optional. The app can run directly on FastAPI/Uvicorn (`:8787`).
+- If you need production HTTPS with Auth0, terminate TLS at a load balancer/CDN and forward to port `8787`.
+
 If `cif-app` systemd service already exists:
 
 ```bash
@@ -186,7 +190,7 @@ sudo systemctl status cif-app --no-pager
 If you want to run manually:
 
 ```bash
-uv run python -m backend.main
+uv run --directory backend python -m uvicorn app:app --host 0.0.0.0 --port 8787 --access-log
 ```
 
 Application link:

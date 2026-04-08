@@ -61,7 +61,7 @@ User=$APP_USER
 WorkingDirectory=$APP_DIR
 Environment=PATH=$HOME/.local/bin:/usr/bin:/bin
 EnvironmentFile=$APP_DIR/.env
-ExecStart=$HOME/.local/bin/uv run --project $APP_DIR/backend python -m backend.main
+ExecStart=$HOME/.local/bin/uv run --directory $APP_DIR/backend python -m uvicorn app:app --host 0.0.0.0 --port 8787 --access-log
 Restart=always
 RestartSec=5
 
