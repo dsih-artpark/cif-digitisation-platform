@@ -1,4 +1,4 @@
-import { Alert, Box, Button, Grid, Snackbar, Stack, Typography } from "@mui/material";
+import { Alert, Box, Button, Card, CardContent, Grid, Snackbar, Stack, Typography } from "@mui/material";
 import { useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import BackButton from "../../components/BackButton/BackButton";
@@ -194,28 +194,31 @@ function CaseReviewPage({ activeRole = "" }) {
         <Typography color="text.secondary">Review, edit and verify extracted CIF fields.</Typography>
       </Box>
 
-      <DocumentCompare
-        uploadedFile={uploadedFile}
-        previewUrl={previewUrl}
-      />
+      <Grid container spacing={2} alignItems="stretch">
+        <Grid item xs={12} md={6}>
+          <DocumentCompare uploadedFile={uploadedFile} previewUrl={previewUrl} />
+        </Grid>
+        <Grid item xs={12} md={6} ref={editableFieldsRef}>
+          <Card sx={{ height: "100%" }}>
+            <CardContent>
+              <Typography variant="h6" mb={1.5}>
+                Extracted Structured Fields
+              </Typography>
+              <CaseTable rows={rows} onValueChange={handleChange} />
+              <Stack direction={{ xs: "column", sm: "row" }} spacing={1.5} mt={2}>
+                <Button variant="contained" onClick={handleSave} sx={{ width: { xs: "100%", sm: "auto" } }}>
+                  Save Record
+                </Button>
+                <Button variant="outlined" onClick={handleMarkVerified} sx={{ width: { xs: "100%", sm: "auto" } }}>
+                  Mark Verified
+                </Button>
+              </Stack>
+            </CardContent>
+          </Card>
+        </Grid>
+      </Grid>
 
       {showValidationRules && <ValidationRules rules={validationRules} />}
-
-      <Box ref={editableFieldsRef}>
-        <Typography variant="h6" mb={1.5}>
-          Extracted Structured Fields (Editable)
-        </Typography>
-        <CaseTable rows={rows} onValueChange={handleChange} />
-      </Box>
-
-      <Stack direction={{ xs: "column", sm: "row" }} spacing={1.5}>
-        <Button variant="contained" onClick={handleSave} sx={{ width: { xs: "100%", sm: "auto" } }}>
-          Save Record
-        </Button>
-        <Button variant="outlined" onClick={handleMarkVerified} sx={{ width: { xs: "100%", sm: "auto" } }}>
-          Mark Verified
-        </Button>
-      </Stack>
 
       <Grid container spacing={2}>
         <Grid item xs={12} md={8}>
