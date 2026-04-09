@@ -1,5 +1,5 @@
 import { Alert, Box, Button, Grid, Snackbar, Stack, Typography } from "@mui/material";
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import BackButton from "../../components/BackButton/BackButton";
 import CaseCard from "../../components/CaseCard/CaseCard";
@@ -43,6 +43,7 @@ function isMissingValue(value) {
 
 function CaseReviewPage({ activeRole = "" }) {
   const navigate = useNavigate();
+  const editableFieldsRef = useRef(null);
   const [toastOpen, setToastOpen] = useState(false);
   const {
     uploadedFile,
@@ -196,13 +197,16 @@ function CaseReviewPage({ activeRole = "" }) {
       <DocumentCompare
         uploadedFile={uploadedFile}
         previewUrl={previewUrl}
-        caseData={caseData}
-        fieldStatus={fieldStatus}
       />
 
       {showValidationRules && <ValidationRules rules={validationRules} />}
 
-      <CaseTable rows={rows} onValueChange={handleChange} />
+      <Box ref={editableFieldsRef}>
+        <Typography variant="h6" mb={1.5}>
+          Extracted Structured Fields (Editable)
+        </Typography>
+        <CaseTable rows={rows} onValueChange={handleChange} />
+      </Box>
 
       <Stack direction={{ xs: "column", sm: "row" }} spacing={1.5}>
         <Button variant="contained" onClick={handleSave} sx={{ width: { xs: "100%", sm: "auto" } }}>
@@ -219,6 +223,12 @@ function CaseReviewPage({ activeRole = "" }) {
             caseData={caseData}
             recordStatus={recordStatus}
             uploadedFile={uploadedFile}
+            onEditRecord={() => {
+              editableFieldsRef.current?.scrollIntoView({
+                behavior: "smooth",
+                block: "start",
+              });
+            }}
           />
         </Grid>
       </Grid>

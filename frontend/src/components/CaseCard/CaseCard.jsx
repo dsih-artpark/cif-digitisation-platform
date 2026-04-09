@@ -1,6 +1,19 @@
 import DownloadRoundedIcon from "@mui/icons-material/DownloadRounded";
 import EditRoundedIcon from "@mui/icons-material/EditRounded";
-import { Box, Button, Card, CardContent, Chip, Stack, Typography } from "@mui/material";
+import PreviewRoundedIcon from "@mui/icons-material/PreviewRounded";
+import {
+  Box,
+  Button,
+  Card,
+  CardContent,
+  Chip,
+  Dialog,
+  DialogContent,
+  DialogTitle,
+  Stack,
+  Typography,
+} from "@mui/material";
+import { useState } from "react";
 
 function sanitizeFileName(value = "cif-report") {
   return String(value)
@@ -156,7 +169,8 @@ function SummaryRow({ label, value }) {
   );
 }
 
-function CaseCard({ caseData, recordStatus, uploadedFile }) {
+function CaseCard({ caseData, recordStatus, uploadedFile, onEditRecord }) {
+  const [previewOpen, setPreviewOpen] = useState(false);
   const chipColor = recordStatus === "Verified" ? "success" : "warning";
   const handleDownloadReport = () => {
     const reportLines = buildReportLines({ caseData });
@@ -172,44 +186,79 @@ function CaseCard({ caseData, recordStatus, uploadedFile }) {
   };
 
   return (
-    <Card>
-      <CardContent>
-        <Typography variant="h6" mb={2}>
-          Case Record Summary
-        </Typography>
-        <Stack spacing={1.2} mb={2}>
-          <SummaryRow label="Patient Name" value={caseData.patientName} />
-          <SummaryRow label="Age" value={caseData.age} />
-          <SummaryRow label="Sex" value={caseData.sex} />
-          <SummaryRow label="Location/Village" value={caseData.locationVillage} />
-          <SummaryRow label="Test Date" value={caseData.testDate} />
-          <SummaryRow label="Test Type" value={caseData.testType} />
-          <SummaryRow label="Result" value={caseData.result} />
-          <SummaryRow label="Pathogen" value={caseData.pathogen} />
-          <SummaryRow label="Treatment" value={caseData.treatment} />
-          <SummaryRow label="Temperature" value={caseData.temperature} />
-          <SummaryRow label="HB Level" value={caseData.hbLevel} />
-        </Stack>
-        <Stack direction="row" alignItems="center" spacing={1} mb={2}>
-          <Typography color="text.secondary">Status:</Typography>
-          <Chip label={recordStatus} color={chipColor} size="small" />
-        </Stack>
-        <Stack direction={{ xs: "column", sm: "row" }} spacing={1}>
-          <Button size="small" variant="outlined" startIcon={<EditRoundedIcon />} sx={{ width: { xs: "100%", sm: "auto" } }}>
-            Edit Record
-          </Button>
+    <>
+      <Card>
+        <CardContent>
+          <Typography variant="h6" mb={2}>
+            Case Record Summary
+          </Typography>
+          <Stack direction="row" alignItems="center" spacing={1} mb={2}>
+            <Typography color="text.secondary">Status:</Typography>
+            <Chip label={recordStatus} color={chipColor} size="small" />
+          </Stack>
           <Button
             size="small"
             variant="outlined"
-            startIcon={<DownloadRoundedIcon />}
-            onClick={handleDownloadReport}
+            startIcon={<PreviewRoundedIcon />}
+            onClick={() => setPreviewOpen(true)}
             sx={{ width: { xs: "100%", sm: "auto" } }}
           >
-            Download Report
+            Preview Case Record
           </Button>
-        </Stack>
-      </CardContent>
-    </Card>
+        </CardContent>
+      </Card>
+
+      <Dialog
+        open={previewOpen}
+        onClose={() => setPreviewOpen(false)}
+        maxWidth="md"
+        fullWidth
+      >
+        <DialogTitle sx={{ pb: 0.8 }}>Case Record Preview</DialogTitle>
+        <DialogContent>
+          <Stack spacing={1.2} mb={2.5}>
+            <SummaryRow label="Patient Name" value={caseData.patientName} />
+            <SummaryRow label="Age" value={caseData.age} />
+            <SummaryRow label="Sex" value={caseData.sex} />
+            <SummaryRow label="Location/Village" value={caseData.locationVillage} />
+            <SummaryRow label="Test Date" value={caseData.testDate} />
+            <SummaryRow label="Test Type" value={caseData.testType} />
+            <SummaryRow label="Result" value={caseData.result} />
+            <SummaryRow label="Pathogen" value={caseData.pathogen} />
+            <SummaryRow label="Treatment" value={caseData.treatment} />
+            <SummaryRow label="Temperature" value={caseData.temperature} />
+            <SummaryRow label="HB Level" value={caseData.hbLevel} />
+          </Stack>
+          <Stack direction="row" alignItems="center" spacing={1} mb={2}>
+            <Typography color="text.secondary">Status:</Typography>
+            <Chip label={recordStatus} color={chipColor} size="small" />
+          </Stack>
+          <Stack direction={{ xs: "column", sm: "row" }} spacing={1}>
+            <Button
+              size="small"
+              variant="outlined"
+              startIcon={<EditRoundedIcon />}
+              sx={{ width: { xs: "100%", sm: "auto" } }}
+              onClick={() => {
+                setPreviewOpen(false);
+                onEditRecord?.();
+              }}
+            >
+              Edit Record
+            </Button>
+            <Button
+              size="small"
+              variant="outlined"
+              startIcon={<DownloadRoundedIcon />}
+              onClick={handleDownloadReport}
+              sx={{ width: { xs: "100%", sm: "auto" } }}
+            >
+              Download Report
+            </Button>
+          </Stack>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }
 
