@@ -84,7 +84,14 @@ function ProcessingPage() {
           completionHandledRef.current = true;
           stopPolling();
           setProcessingError("");
-          applyExtractionResult(job.result);
+          applyExtractionResult(job.result, {
+            usage: job?.usage || null,
+            latencyMs: Number(job?.elapsedMs) || 0,
+            jobId: job?.id || "",
+            createdAt: job?.createdAt || "",
+            startedAt: job?.startedAt || "",
+            completedAt: job?.completedAt || "",
+          });
           markCurrentUploadStatus({
             extractionStatus: "Completed",
             recordStatus: job?.result?.recordStatus || "Review Required",

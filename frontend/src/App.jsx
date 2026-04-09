@@ -1,8 +1,21 @@
-import { Box, CircularProgress, Container, Stack, Typography } from "@mui/material";
+import {
+  Box,
+  Card,
+  CardContent,
+  CircularProgress,
+  Container,
+  Dialog,
+  DialogContent,
+  DialogTitle,
+  Divider,
+  Stack,
+  Typography,
+} from "@mui/material";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Navigate, Route, Routes, useLocation, useNavigate } from "react-router-dom";
 import Navbar from "./components/Navbar/Navbar";
 import {
+  DEMO_ROLES,
   appRoleMatchesAssignedRoles,
   getRoleHome,
   isRouteAllowed,
@@ -22,8 +35,43 @@ import ProcessingPage from "./pages/ProcessingPage/ProcessingPage";
 import CaseReviewPage from "./pages/CaseReviewPage/CaseReviewPage";
 import Reports from "./pages/Reports/Reports";
 import LandingPage from "./pages/LandingPage/LandingPage";
+import { useCif } from "./context/CifContext";
 
 const ROLE_STORAGE_KEY = "cif_demo_active_role";
+
+function formatLatency(value) {
+  const ms = Number(value);
+  if (!Number.isFinite(ms) || ms <= 0) return "N/A";
+  if (ms < 1000) return `${ms} ms`;
+  return `${(ms / 1000).toFixed(2)} s`;
+}
+
+function toNumberOrNa(value) {
+  const num = Number(value);
+  return Number.isFinite(num) ? num.toLocaleString() : "N/A";
+}
+
+function buildTokenUsage(usage) {
+  const normalized = usage && typeof usage === "object" ? usage : {};
+  return {
+    input: toNumberOrNa(normalized.prompt_tokens ?? normalized.input_tokens ?? normalized.inputTokens),
+    output: toNumberOrNa(normalized.completion_tokens ?? normalized.output_tokens ?? normalized.outputTokens),
+    total: toNumberOrNa(normalized.total_tokens ?? normalized.totalTokens),
+  };
+}
+
+function AnalysisMetric({ label, value }) {
+  return (
+    <Stack spacing={0.3}>
+      <Typography variant="caption" color="text.secondary">
+        {label}
+      </Typography>
+      <Typography variant="body2" fontWeight={700}>
+        {value}
+      </Typography>
+    </Stack>
+  );
+}
 
 function FullPageLoader({ title, description }) {
   return (
@@ -60,6 +108,7 @@ function RoleGuard({ activeRole, isAuthenticated, routePath, children }) {
 function App() {
   const location = useLocation();
   const navigate = useNavigate();
+  const { uploadedFile, previewUrl, extractionMetadata } = useCif();
   const [activeRole, setActiveRole] = useState(() => {
     if (typeof window === "undefined") return "";
     return window.sessionStorage.getItem(ROLE_STORAGE_KEY) || "";
@@ -70,10 +119,16 @@ function App() {
   });
   const [authMessage, setAuthMessage] = useState("");
   const [authReady, setAuthReady] = useState(false);
+  const [analysisPreviewOpen, setAnalysisPreviewOpen] = useState(false);
   const isLandingPage = location.pathname === "/";
   const isAuthenticated = Boolean(authSession?.accessToken);
   const effectiveRole = activeRole;
   const roleHome = useMemo(() => getRoleHome(effectiveRole), [effectiveRole]);
+  const showAnalysisPreview = effectiveRole === DEMO_ROLES.ADMIN && location.pathname === "/case-review";
+  const tokenUsage = useMemo(
+    () => buildTokenUsage(extractionMetadata?.usage),
+    [extractionMetadata?.usage]
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -190,7 +245,14 @@ function App() {
 
   return (
     <Box sx={{ minHeight: "100vh", bgcolor: "background.default", overflowX: "clip" }}>
-      {!isLandingPage && effectiveRole && <Navbar activeRole={effectiveRole} onSignOut={performSignOut} />}
+      {!isLandingPage && effectiveRole && (
+        <Navbar
+          activeRole={effectiveRole}
+          onSignOut={performSignOut}
+          showAnalysisPreview={showAnalysisPreview}
+          onOpenAnalysisPreview={() => setAnalysisPreviewOpen(true)}
+        />
+      )}
       <Container
         maxWidth="xl"
         sx={{
@@ -274,6 +336,86 @@ function App() {
           </Routes>
         </Box>
       </Container>
+      <Dialog
+        open={analysisPreviewOpen}
+        onClose={() => setAnalysisPreviewOpen(false)}
+        maxWidth="md"
+        fullWidth
+      >
+        <DialogTitle sx={{ pb: 0.8 }}>Analysis Preview</DialogTitle>
+        <DialogContent sx={{ pt: 1.2 }}>
+          <Stack spacing={2.2}>
+            <Card variant="outlined" sx={{ borderRadius: 2.5 }}>
+              <CardContent>
+                <Stack
+                  direction={{ xs: "column", sm: "row" }}
+                  spacing={{ xs: 1.5, sm: 2.5 }}
+                  divider={<Divider orientation="vertical" flexItem sx={{ display: { xs: "none", sm: "block" } }} />}
+                >
+                  <AnalysisMetric label="Model Used" value={extractionMetadata?.model || "N/A"} />
+                  <AnalysisMetric label="Latency" value={formatLatency(extractionMetadata?.latencyMs)} />
+                  <AnalysisMetric label="Input Tokens" value={tokenUsage.input} />
+                  <AnalysisMetric label="Output Tokens" value={tokenUsage.output} />
+                  <AnalysisMetric label="Total Tokens" value={tokenUsage.total} />
+                </Stack>
+              </CardContent>
+            </Card>
+
+            <Card variant="outlined" sx={{ borderRadius: 2.5 }}>
+              <CardContent>
+                <Typography variant="subtitle2" fontWeight={700} mb={1.2}>
+                  Uploaded Document For Analysis
+                </Typography>
+                <Typography variant="caption" color="text.secondary" display="block" mb={1.4}>
+                  {uploadedFile?.name || "No uploaded document available."}
+                </Typography>
+                <Box
+                  sx={{
+                    border: "1px solid #d8e0ea",
+                    borderRadius: 2,
+                    overflow: "hidden",
+                    bgcolor: "#f8fafc",
+                    minHeight: { xs: 220, sm: 360 },
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                  }}
+                >
+                  {uploadedFile?.type?.startsWith("image/") && previewUrl && (
+                    <Box
+                      component="img"
+                      src={previewUrl}
+                      alt="Uploaded document preview"
+                      sx={{
+                        width: "100%",
+                        maxHeight: { xs: 280, sm: 460 },
+                        objectFit: "contain",
+                      }}
+                    />
+                  )}
+                  {uploadedFile?.type === "application/pdf" && previewUrl && (
+                    <Box
+                      component="iframe"
+                      src={previewUrl}
+                      title="Uploaded document preview"
+                      sx={{
+                        width: "100%",
+                        height: { xs: 280, sm: 460 },
+                        border: 0,
+                      }}
+                    />
+                  )}
+                  {!previewUrl && (
+                    <Typography variant="body2" color="text.secondary">
+                      Document preview is not available yet.
+                    </Typography>
+                  )}
+                </Box>
+              </CardContent>
+            </Card>
+          </Stack>
+        </DialogContent>
+      </Dialog>
     </Box>
   );
 }

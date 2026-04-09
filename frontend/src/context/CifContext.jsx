@@ -86,7 +86,7 @@ export function CifProvider({ children }) {
     setExtractionMetadata(null);
   }, []);
 
-  const applyExtractionResult = useCallback((result) => {
+  const applyExtractionResult = useCallback((result, metadataOverrides = null) => {
     if (!result) return;
     const nextCaseData = {
       patientName: result?.caseData?.patientName || "N/A",
@@ -119,7 +119,12 @@ export function CifProvider({ children }) {
     setCaseData(nextCaseData);
     setFieldStatus(nextFieldStatus);
     setRecordStatus(result?.recordStatus || "Review Required");
-    setExtractionMetadata(result?.metadata || null);
+    const baseMetadata =
+      result?.metadata && typeof result.metadata === "object" ? result.metadata : {};
+    const overrideMetadata =
+      metadataOverrides && typeof metadataOverrides === "object" ? metadataOverrides : {};
+    const mergedMetadata = { ...baseMetadata, ...overrideMetadata };
+    setExtractionMetadata(Object.keys(mergedMetadata).length ? mergedMetadata : null);
   }, []);
 
   const markCurrentUploadStatus = useCallback(

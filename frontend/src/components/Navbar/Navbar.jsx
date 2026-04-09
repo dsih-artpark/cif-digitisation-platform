@@ -1,6 +1,7 @@
 import MenuRoundedIcon from "@mui/icons-material/MenuRounded";
 import CloseRoundedIcon from "@mui/icons-material/CloseRounded";
 import LogoutRoundedIcon from "@mui/icons-material/LogoutRounded";
+import PreviewRoundedIcon from "@mui/icons-material/PreviewRounded";
 import {
   AppBar,
   Box,
@@ -21,7 +22,7 @@ import { useState } from "react";
 import { NavLink, useLocation } from "react-router-dom";
 import { ROLE_ACCESS } from "../../config/roleAccess";
 
-function Navbar({ activeRole, onSignOut }) {
+function Navbar({ activeRole, onSignOut, showAnalysisPreview = false, onOpenAnalysisPreview = null }) {
   const location = useLocation();
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down("md"));
@@ -63,6 +64,26 @@ function Navbar({ activeRole, onSignOut }) {
           >
             {roleLabel}
           </Typography>
+          {showAnalysisPreview && (
+            <Button
+              size="small"
+              variant="outlined"
+              startIcon={<PreviewRoundedIcon sx={{ fontSize: 18 }} />}
+              onClick={onOpenAnalysisPreview}
+              sx={{
+                display: { xs: "none", md: "inline-flex" },
+                borderColor: "rgba(255,255,255,0.45)",
+                color: "white",
+                borderRadius: 999,
+                textTransform: "none",
+                minWidth: 0,
+                px: 1.35,
+                "&:hover": { bgcolor: "rgba(255,255,255,0.12)", borderColor: "rgba(255,255,255,0.65)" },
+              }}
+            >
+              Preview Analysis
+            </Button>
+          )}
         </Box>
         {isMobile ? (
           <>
@@ -88,6 +109,16 @@ function Navbar({ activeRole, onSignOut }) {
                   </IconButton>
                 </Stack>
                 <List sx={{ py: 0.5 }}>
+                  {showAnalysisPreview && (
+                    <ListItemButton
+                      onClick={() => {
+                        onOpenAnalysisPreview?.();
+                        setDrawerOpen(false);
+                      }}
+                    >
+                      <ListItemText primary="Preview Analysis" />
+                    </ListItemButton>
+                  )}
                   {navItems.map((item) => (
                     <ListItemButton
                       key={item.path}
