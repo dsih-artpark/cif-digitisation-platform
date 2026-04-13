@@ -11,6 +11,7 @@ from .core.config import PORT
 from .core.logging import logger
 from .services.frontend_service import ensure_frontend_build
 from .services.job_service import cleanup_jobs_task
+from .services.persistence_service import initialize_persistence
 
 app = FastAPI(title="CIF Digitisation API")
 app.add_middleware(
@@ -43,6 +44,11 @@ async def log_requests(request: Request, call_next):
 @app.on_event("startup")
 async def startup_event() -> None:
     ensure_frontend_build()
+    try:
+        initialize_persistence()
+        logger.info("SQLite persistence initialized")
+    except Exception:  # pragma: no cover
+        logger.exception("SQLite persistence initialization failed; continuing without DB writes")
     logger.info("CIF digitisation API running on http://localhost:%s", PORT)
     asyncio.create_task(cleanup_jobs_task())
 

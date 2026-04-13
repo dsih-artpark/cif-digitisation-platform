@@ -14,6 +14,8 @@ OPENROUTER_BASE_URL = os.getenv("OPENROUTER_BASE_URL", "https://openrouter.ai/ap
 MODEL_NAME = os.getenv("OPENROUTER_MODEL", "anthropic/claude-sonnet-4.6").strip()
 
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
+DEFAULT_SQLITE_DB_PATH = PROJECT_ROOT / "backend" / "data" / "cif.db"
+DATABASE_URL = os.getenv("DATABASE_URL", f"sqlite:///{DEFAULT_SQLITE_DB_PATH.as_posix()}").strip()
 FRONTEND_DIR = PROJECT_ROOT / "frontend"
 FRONTEND_SOURCE_DIR = FRONTEND_DIR / "src"
 FRONTEND_PUBLIC_DIR = FRONTEND_DIR / "public"

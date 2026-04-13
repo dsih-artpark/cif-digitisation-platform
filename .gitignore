@@ -8,6 +8,8 @@ __pycache__/
 *.pyc
 .venv/
 backend/.venv/
+backend/data/
+*.db
 prescription docs/
 Dummy_prescription/
 Dummy_prescriptions/

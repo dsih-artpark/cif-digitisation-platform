@@ -18,6 +18,7 @@ from ..services.extraction_service import (
     translate_extraction_to_english,
 )
 from ..services.normalization_service import normalize_extraction
+from ..services.persistence_service import upsert_ocr_record
 from ..utils.time_utils import now_iso, parse_iso_to_ms
 
 jobs: dict[str, dict[str, Any]] = {}
@@ -247,6 +248,10 @@ async def process_job(job: dict[str, Any], payload: DigitizePayload) -> None:
         job["completedAt"] = now_iso()
         job["updatedAt"] = job["completedAt"]
         append_log(job, "Extraction completed successfully")
+        try:
+            await asyncio.to_thread(upsert_ocr_record, job)
+        except Exception:  # pragma: no cover
+            logger.exception("Failed to persist OCR record for job %s", job.get("id"))
     except HTTPException as exc:
         running_stage_index = get_running_stage_index(job)
         if running_stage_index >= 0:
