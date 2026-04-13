@@ -70,7 +70,7 @@ export async function createDigitizeJob(file) {
 
   let response;
   try {
-    response = await fetch(`${API_BASE_URL}/api/digitize`, {
+    response = await fetch(`${API_BASE_URL}/digitize`, {
       method: "POST",
       headers: {
         ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
@@ -100,7 +100,7 @@ export async function createDigitizeJob(file) {
 
 export async function getDigitizeJob(jobId) {
   const accessToken = getAccessToken();
-  const response = await fetch(`${API_BASE_URL}/api/digitize/${jobId}`, {
+  const response = await fetch(`${API_BASE_URL}/digitize/${jobId}`, {
     headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : {},
   });
   const payload = await response.json().catch(() => ({}));

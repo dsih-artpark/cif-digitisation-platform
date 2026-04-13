@@ -15,6 +15,12 @@ from ....utils.time_utils import now_iso
 router = APIRouter()
 
 
+def ensure_request_access(request: Request) -> None:
+    """Keep legacy /api routes protected, while allowing non-/api runtime routes."""
+    if request.url.path.startswith("/api/"):
+        ensure_digitize_access(request)
+
+
 @router.get("/api/health")
 async def health() -> dict[str, Any]:
     return {
@@ -25,6 +31,7 @@ async def health() -> dict[str, Any]:
 
 
 @router.post("/api/digitize", status_code=202)
+@router.post("/digitize", status_code=202)
 async def create_digitize_job(
     request: Request,
     background_tasks: BackgroundTasks,
@@ -32,7 +39,7 @@ async def create_digitize_job(
     file_name: Annotated[str | None, Form()] = None,
     file_type: Annotated[str | None, Form()] = None,
 ) -> dict[str, Any]:
-    ensure_digitize_access(request)
+    ensure_request_access(request)
 
     payload = await parse_digitize_payload(
         request, file=file, file_name=file_name, file_type=file_type
@@ -49,8 +56,9 @@ async def create_digitize_job(
 
 
 @router.get("/api/digitize/{job_id}")
+@router.get("/digitize/{job_id}")
 async def get_digitize_job(job_id: str, request: Request) -> dict[str, Any]:
-    ensure_digitize_access(request)
+    ensure_request_access(request)
 
     job = jobs.get(job_id)
     if not job:
