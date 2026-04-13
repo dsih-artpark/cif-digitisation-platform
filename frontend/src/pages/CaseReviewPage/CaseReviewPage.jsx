@@ -41,6 +41,36 @@ function isMissingValue(value) {
   return !normalized || normalized === "n/a" || normalized === "unknown";
 }
 
+const FIELD_SEVERITY = {
+  patientName: "Critical",
+  age: "Critical",
+  sex: "Critical",
+  result: "Critical",
+  pathogen: "Critical",
+  locationVillage: "High",
+  testDate: "High",
+  testType: "High",
+  treatment: "Medium",
+  temperature: "Medium",
+  hbLevel: "Medium",
+  contacts: "Medium",
+};
+
+const FIELD_LABELS = {
+  patientName: "Patient Name",
+  age: "Age",
+  sex: "Sex",
+  locationVillage: "Location/Village",
+  testDate: "Test Date",
+  testType: "Test Type",
+  result: "Result",
+  pathogen: "Pathogen",
+  treatment: "Treatment",
+  temperature: "Temperature",
+  hbLevel: "HB Level",
+  contacts: "Contacts",
+};
+
 function CaseReviewPage({ activeRole = "" }) {
   const navigate = useNavigate();
   const editableFieldsRef = useRef(null);
@@ -81,6 +111,7 @@ function CaseReviewPage({ activeRole = "" }) {
       },
       { key: "temperature", label: "Temperature", value: caseData.temperature, status: fieldStatus.temperature },
       { key: "hbLevel", label: "HB Level", value: caseData.hbLevel, status: fieldStatus.hbLevel },
+      { key: "contacts", label: "Contacts", value: caseData.contacts, status: fieldStatus.contacts },
     ],
     [caseData, fieldStatus]
   );
@@ -98,8 +129,28 @@ function CaseReviewPage({ activeRole = "" }) {
       "treatment",
       "temperature",
       "hbLevel",
+      "contacts",
     ];
     const missingFields = requiredKeys.filter((key) => isMissingValue(caseData[key]));
+    const missingBySeverity = {
+      Critical: [],
+      High: [],
+      Medium: [],
+    };
+    missingFields.forEach((key) => {
+      const severity = FIELD_SEVERITY[key] || "Medium";
+      missingBySeverity[severity].push(FIELD_LABELS[key] || key);
+    });
+    const severityMessages = [
+      missingBySeverity.Critical.length
+        ? `Critical: ${missingBySeverity.Critical.join(", ")}`
+        : "",
+      missingBySeverity.High.length ? `High: ${missingBySeverity.High.join(", ")}` : "",
+      missingBySeverity.Medium.length
+        ? `Medium: ${missingBySeverity.Medium.join(", ")}`
+        : "",
+    ].filter(Boolean);
+
     const ageNumber = Number(caseData.age);
     const normalizedSex = String(caseData.sex || "").trim().toLowerCase();
     const treatmentLines = String(caseData.treatment || "")
@@ -114,12 +165,17 @@ function CaseReviewPage({ activeRole = "" }) {
     return [
       {
         id: "required-fields",
-        title: "Required Field Completeness",
-        status: missingFields.length === 0 ? "pass" : "error",
+        title: "Required Field Completeness (Severity-Based)",
+        status:
+          missingBySeverity.Critical.length > 0
+            ? "error"
+            : missingFields.length > 0
+              ? "warning"
+              : "pass",
         message:
           missingFields.length === 0
             ? "All required CIF fields are present."
-            : `Missing values: ${missingFields.join(", ")}.`,
+            : `Missing values by severity: ${severityMessages.join(" | ")}.`,
       },
       {
         id: "age-validation",

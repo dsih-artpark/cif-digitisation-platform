@@ -106,9 +106,7 @@ def normalize_treatment(value: Any) -> str:
 
 def extract_age_and_sex_fallback(raw_data: dict[str, Any]) -> tuple[str, str]:
     combined_text = " ".join(
-        flatten_text(raw_data.get(key))
-        for key in raw_data.keys()
-        if raw_data.get(key) is not None
+        flatten_text(raw_data.get(key)) for key in raw_data.keys() if raw_data.get(key) is not None
     )
     combined_text = re.sub(r"\s+", " ", combined_text).strip()
     if not combined_text:
@@ -130,7 +128,9 @@ def extract_age_and_sex_fallback(raw_data: dict[str, Any]) -> tuple[str, str]:
             age = normalize_age(age_match.group(1))
 
     if age == "N/A":
-        year_match = re.search(r"\b(\d{1,3})\s*(?:years?|yrs?)\b", combined_text, flags=re.IGNORECASE)
+        year_match = re.search(
+            r"\b(\d{1,3})\s*(?:years?|yrs?)\b", combined_text, flags=re.IGNORECASE
+        )
         if year_match:
             age = normalize_age(year_match.group(1))
 
@@ -146,18 +146,41 @@ def extract_age_and_sex_fallback(raw_data: dict[str, Any]) -> tuple[str, str]:
     return age, sex
 
 
+def extract_contacts_fallback(raw_data: dict[str, Any]) -> str:
+    combined_text = " ".join(
+        flatten_text(raw_data.get(key)) for key in raw_data.keys() if raw_data.get(key) is not None
+    )
+    combined_text = re.sub(r"\s+", " ", combined_text).strip()
+    if not combined_text:
+        return "N/A"
+
+    match = re.search(
+        r"\bcontact(?:s)?(?:\s*bs)?\s*[:=\-]?\s*([0-9]{1,3}\s*/\s*[0-9]{1,3}|[0-9]{1,3})\b",
+        combined_text,
+        flags=re.IGNORECASE,
+    )
+    if not match:
+        return "N/A"
+    return sanitize_value(match.group(1))
+
+
 def normalize_extraction(raw_data: dict[str, Any]) -> dict[str, Any]:
     fallback_age, fallback_sex = extract_age_and_sex_fallback(raw_data)
+    fallback_contacts = extract_contacts_fallback(raw_data)
     case_data = {
         "patientName": sanitize_value(
             first_available_value(raw_data, "patientName", "patient_name", "name", "fullName")
         ),
-        "age": normalize_age(first_available_value(raw_data, "age", "patientAge", "ageYears"))
-        if first_available_value(raw_data, "age", "patientAge", "ageYears") is not None
-        else fallback_age,
-        "sex": normalize_sex(first_available_value(raw_data, "sex", "gender", "patientSex"))
-        if first_available_value(raw_data, "sex", "gender", "patientSex") is not None
-        else fallback_sex,
+        "age": (
+            normalize_age(first_available_value(raw_data, "age", "patientAge", "ageYears"))
+            if first_available_value(raw_data, "age", "patientAge", "ageYears") is not None
+            else fallback_age
+        ),
+        "sex": (
+            normalize_sex(first_available_value(raw_data, "sex", "gender", "patientSex"))
+            if first_available_value(raw_data, "sex", "gender", "patientSex") is not None
+            else fallback_sex
+        ),
         "locationVillage": sanitize_value(
             first_available_value(raw_data, "locationVillage", "location", "village", "address")
         ),
@@ -186,6 +209,30 @@ def normalize_extraction(raw_data: dict[str, Any]) -> dict[str, Any]:
         "temperature": sanitize_value(first_available_value(raw_data, "temperature", "temp")),
         "hbLevel": sanitize_value(
             first_available_value(raw_data, "hbLevel", "hb", "hb_level", "haemoglobin")
+        ),
+        "contacts": (
+            sanitize_value(
+                first_available_value(
+                    raw_data,
+                    "contacts",
+                    "contact",
+                    "contactBS",
+                    "contact_bs",
+                    "contactCount",
+                    "contact_count",
+                )
+            )
+            if first_available_value(
+                raw_data,
+                "contacts",
+                "contact",
+                "contactBS",
+                "contact_bs",
+                "contactCount",
+                "contact_count",
+            )
+            is not None
+            else fallback_contacts
         ),
     }
     field_status = {

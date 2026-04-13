@@ -15,6 +15,7 @@ const EMPTY_CASE_DATA = {
   treatment: "N/A",
   temperature: "N/A",
   hbLevel: "N/A",
+  contacts: "N/A",
 };
 
 const EMPTY_FIELD_STATUS = {
@@ -29,6 +30,7 @@ const EMPTY_FIELD_STATUS = {
   treatment: "Review Required",
   temperature: "Review Required",
   hbLevel: "Review Required",
+  contacts: "Review Required",
 };
 
 export function CifProvider({ children }) {
@@ -100,6 +102,7 @@ export function CifProvider({ children }) {
       treatment: result?.caseData?.treatment || "N/A",
       temperature: result?.caseData?.temperature || "N/A",
       hbLevel: result?.caseData?.hbLevel || "N/A",
+      contacts: result?.caseData?.contacts || "N/A",
     };
 
     const nextFieldStatus = {
@@ -114,6 +117,7 @@ export function CifProvider({ children }) {
       treatment: result?.fieldStatus?.treatment || "Review Required",
       temperature: result?.fieldStatus?.temperature || "Review Required",
       hbLevel: result?.fieldStatus?.hbLevel || "Review Required",
+      contacts: result?.fieldStatus?.contacts || "Review Required",
     };
 
     setCaseData(nextCaseData);

@@ -76,6 +76,7 @@ function buildReportLines({ caseData }) {
     `Treatment: ${caseData.treatment}`,
     `Temperature: ${caseData.temperature}`,
     `HB Level: ${caseData.hbLevel}`,
+    `Contacts: ${caseData.contacts}`,
     "",
   ].flatMap((line) => wrapPdfLine(line));
 }
@@ -228,6 +229,7 @@ function CaseCard({ caseData, recordStatus, uploadedFile, onEditRecord }) {
             <SummaryRow label="Treatment" value={caseData.treatment} />
             <SummaryRow label="Temperature" value={caseData.temperature} />
             <SummaryRow label="HB Level" value={caseData.hbLevel} />
+            <SummaryRow label="Contacts" value={caseData.contacts} />
           </Stack>
           <Stack direction="row" alignItems="center" spacing={1} mb={2}>
             <Typography color="text.secondary">Status:</Typography>
