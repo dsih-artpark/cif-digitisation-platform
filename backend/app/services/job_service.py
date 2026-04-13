@@ -7,7 +7,7 @@ from uuid import uuid4
 
 from fastapi import HTTPException
 
-from ..core.config import MODEL_NAME, STAGE_DEFINITIONS
+from ..core.config import STAGE_DEFINITIONS
 from ..core.logging import logger
 from ..schemas.digitize import DigitizePayload
 from ..services.document_service import validate_and_normalize_data_url
@@ -178,15 +178,15 @@ async def process_job(job: dict[str, Any], payload: DigitizePayload) -> None:
         mark_stage_completed(job, 0)
 
         mark_stage_running(job, 1)
-        normalized_data_url, preprocessing_message = validate_and_normalize_data_url(
-            payload.fileDataUrl, payload.fileType
+        normalized_data_url, preprocessing_message, preprocessing_metadata = (
+            validate_and_normalize_data_url(payload.fileDataUrl, payload.fileType)
         )
         append_log(job, preprocessing_message)
         mark_stage_completed(job, 1)
 
         mark_stage_running(job, 2)
         extraction_output = await asyncio.to_thread(
-            call_openrouter_for_extraction, normalized_data_url
+            call_openrouter_for_extraction, normalized_data_url, preprocessing_metadata
         )
         extracted_data = extraction_output.get("extracted") or {}
         if has_multilingual_text(extracted_data):
@@ -201,14 +201,23 @@ async def process_job(job: dict[str, Any], payload: DigitizePayload) -> None:
         mark_stage_completed(job, 3)
 
         mark_stage_running(job, 4)
+        extraction_usage = extraction_output.get("usage")
+        resolved_model = (
+            extraction_output.get("model") or extraction_output.get("requestedModel") or "N/A"
+        )
         job["result"] = {
             **normalized,
             "metadata": {
-                "model": MODEL_NAME,
+                "model": resolved_model,
+                "requestedModel": extraction_output.get("requestedModel"),
+                "latencyMs": extraction_output.get("latencyMs"),
+                "maxTokensRequested": extraction_output.get("maxTokensRequested"),
+                "preprocessing": preprocessing_metadata,
+                "usage": extraction_usage,
                 "extractedAt": now_iso(),
             },
         }
-        job["usage"] = extraction_output.get("usage")
+        job["usage"] = extraction_usage
         mark_stage_completed(job, 4)
 
         job["status"] = "completed"

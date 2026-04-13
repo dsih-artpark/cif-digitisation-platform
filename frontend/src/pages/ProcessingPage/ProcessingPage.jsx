@@ -84,9 +84,13 @@ function ProcessingPage() {
           completionHandledRef.current = true;
           stopPolling();
           setProcessingError("");
+          const metadataLatency = Number(job?.result?.metadata?.latencyMs);
           applyExtractionResult(job.result, {
-            usage: job?.usage || null,
-            latencyMs: Number(job?.elapsedMs) || 0,
+            usage: job?.usage || job?.result?.metadata?.usage || null,
+            latencyMs:
+              Number.isFinite(metadataLatency) && metadataLatency > 0
+                ? metadataLatency
+                : Number(job?.elapsedMs) || 0,
             jobId: job?.id || "",
             createdAt: job?.createdAt || "",
             startedAt: job?.startedAt || "",

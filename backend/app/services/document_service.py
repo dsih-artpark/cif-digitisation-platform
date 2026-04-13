@@ -197,7 +197,32 @@ def convert_pdf_bytes_to_image_data_url(pdf_bytes: bytes) -> tuple[str, int]:
         document.close()
 
 
-def validate_and_normalize_data_url(file_data_url: str, file_type: str) -> tuple[str, str]:
+def summarize_preprocessed_payload(
+    output_data_url: str, source_mime_type: str, *, page_count: int = 1
+) -> dict[str, int | str]:
+    output_mime_type, output_bytes = parse_data_url(output_data_url)
+    width = 0
+    height = 0
+    try:
+        with Image.open(io.BytesIO(output_bytes)) as image:
+            width, height = image.size
+    except Exception:
+        width = 0
+        height = 0
+
+    return {
+        "sourceMimeType": source_mime_type,
+        "outputMimeType": normalize_mime_type(output_mime_type) or output_mime_type,
+        "byteSize": len(output_bytes),
+        "width": width,
+        "height": height,
+        "pageCount": max(1, int(page_count or 1)),
+    }
+
+
+def validate_and_normalize_data_url(
+    file_data_url: str, file_type: str
+) -> tuple[str, str, dict[str, int | str]]:
     mime_type, file_bytes = parse_data_url(file_data_url)
     normalized_declared = normalize_mime_type(file_type)
     normalized_mime = normalize_mime_type(mime_type)
@@ -215,9 +240,23 @@ def validate_and_normalize_data_url(file_data_url: str, file_type: str) -> tuple
     if normalized_mime == "application/pdf":
         converted_data_url, page_count = convert_pdf_bytes_to_image_data_url(file_bytes)
         page_label = "page" if page_count == 1 else "pages"
-        return converted_data_url, f"PDF rendered for OCR from {page_count} {page_label}"
+        preprocessing = summarize_preprocessed_payload(
+            converted_data_url, normalized_mime, page_count=page_count
+        )
+        return (
+            converted_data_url,
+            f"PDF rendered for OCR from {page_count} {page_label}",
+            preprocessing,
+        )
 
     if normalized_mime not in {"image/jpeg", "image/jpg", "image/png", "image/webp"}:
-        return convert_generic_image_bytes_to_image_data_url(file_bytes, normalized_mime)
+        converted_data_url, message = convert_generic_image_bytes_to_image_data_url(
+            file_bytes, normalized_mime
+        )
+        preprocessing = summarize_preprocessed_payload(
+            converted_data_url, normalized_mime, page_count=1
+        )
+        return converted_data_url, message, preprocessing
 
-    return file_data_url, f"{normalized_mime} payload validated for OCR extraction"
+    preprocessing = summarize_preprocessed_payload(file_data_url, normalized_mime, page_count=1)
+    return file_data_url, f"{normalized_mime} payload validated for OCR extraction", preprocessing

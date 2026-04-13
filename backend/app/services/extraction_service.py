@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import re
+import time
 from typing import Any
 
 import requests
@@ -9,6 +10,8 @@ from fastapi import HTTPException
 
 from ..core.config import MODEL_NAME, OPENROUTER_BASE_URL, PORT
 from ..core.logging import logger
+
+AFFORDABILITY_PATTERN = re.compile(r"can only afford\s+([\d,]+)\s+tokens", re.IGNORECASE)
 
 
 def get_message_content(message: Any) -> str:
@@ -110,6 +113,42 @@ def build_prompt() -> str:
     )
 
 
+def to_int(value: Any, fallback: int) -> int:
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return fallback
+
+
+def estimate_extraction_max_tokens(preprocessing: dict[str, Any] | None) -> int:
+    context = preprocessing if isinstance(preprocessing, dict) else {}
+    width = max(1, to_int(context.get("width"), 1))
+    height = max(1, to_int(context.get("height"), 1))
+    page_count = max(1, to_int(context.get("pageCount"), 1))
+    byte_size = max(0, to_int(context.get("byteSize"), 0))
+
+    megapixels = (width * height) / 1_000_000
+    size_kb = byte_size / 1024
+    estimated = round(420 + (megapixels * 240) + (page_count * 180) + (size_kb / 10))
+    return max(320, estimated)
+
+
+def estimate_translation_max_tokens(extracted_json: dict[str, Any]) -> int:
+    content_chars = len(json.dumps(extracted_json, ensure_ascii=False))
+    estimated = round(220 + (content_chars / 2))
+    return max(256, estimated)
+
+
+def parse_affordable_tokens(message: str) -> int | None:
+    match = AFFORDABILITY_PATTERN.search(message or "")
+    if not match:
+        return None
+    try:
+        return int(match.group(1).replace(",", ""))
+    except ValueError:
+        return None
+
+
 def call_openrouter(payload: dict[str, Any], log_label: str) -> dict[str, Any]:
     import os
 
@@ -160,10 +199,14 @@ def call_openrouter(payload: dict[str, Any], log_label: str) -> dict[str, Any]:
     return response_payload
 
 
-def call_openrouter_for_extraction(file_data_url: str) -> dict[str, Any]:
+def call_openrouter_for_extraction(
+    file_data_url: str, preprocessing: dict[str, Any] | None = None
+) -> dict[str, Any]:
+    max_tokens = estimate_extraction_max_tokens(preprocessing)
     payload = {
         "model": MODEL_NAME,
         "temperature": 0,
+        "max_tokens": max_tokens,
         "response_format": {"type": "json_object"},
         "messages": [
             {
@@ -175,7 +218,18 @@ def call_openrouter_for_extraction(file_data_url: str) -> dict[str, Any]:
             }
         ],
     }
-    response_payload = call_openrouter(payload, "extraction")
+    started = time.perf_counter()
+    try:
+        response_payload = call_openrouter(payload, "extraction")
+    except HTTPException as exc:
+        affordable_tokens = parse_affordable_tokens(str(exc.detail))
+        if affordable_tokens and affordable_tokens > 0:
+            payload["max_tokens"] = affordable_tokens
+            response_payload = call_openrouter(payload, "extraction_retry_affordable_tokens")
+        else:
+            raise
+    latency_ms = round((time.perf_counter() - started) * 1000, 2)
+
     first_choice = response_payload.get("choices", [{}])[0]
     message = first_choice.get("message", {})
     content = get_message_content(message.get("content"))
@@ -186,7 +240,14 @@ def call_openrouter_for_extraction(file_data_url: str) -> dict[str, Any]:
             "OpenRouter returned empty extraction content | payload=%s", response_payload
         )
         raise HTTPException(status_code=502, detail="Model response was empty.")
-    response = {"extracted": parse_model_json(content), "usage": response_payload.get("usage")}
+    response = {
+        "extracted": parse_model_json(content),
+        "usage": response_payload.get("usage"),
+        "model": response_payload.get("model") or first_choice.get("model"),
+        "requestedModel": payload.get("model"),
+        "latencyMs": latency_ms,
+        "maxTokensRequested": payload.get("max_tokens"),
+    }
     logger.info("Extraction result parsed successfully | %s", response["extracted"])
     return response
 
@@ -195,6 +256,7 @@ def translate_extraction_to_english(extracted_json: dict[str, Any]) -> dict[str,
     payload = {
         "model": MODEL_NAME,
         "temperature": 0,
+        "max_tokens": estimate_translation_max_tokens(extracted_json),
         "response_format": {"type": "json_object"},
         "messages": [
             {
