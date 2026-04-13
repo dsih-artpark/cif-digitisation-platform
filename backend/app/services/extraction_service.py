@@ -149,6 +149,71 @@ def parse_affordable_tokens(message: str) -> int | None:
         return None
 
 
+def to_number(value: Any) -> float | None:
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def first_non_none(*values: Any) -> Any:
+    for value in values:
+        if value is not None:
+            return value
+    return None
+
+
+def normalize_usage(usage: Any) -> dict[str, int] | None:
+    if not isinstance(usage, dict):
+        return None
+
+    prompt = to_number(
+        first_non_none(
+            usage.get("prompt_tokens"), usage.get("input_tokens"), usage.get("inputTokens")
+        )
+    )
+    completion = to_number(
+        first_non_none(
+            usage.get("completion_tokens"),
+            usage.get("output_tokens"),
+            usage.get("outputTokens"),
+        )
+    )
+    total = to_number(first_non_none(usage.get("total_tokens"), usage.get("totalTokens")))
+
+    normalized: dict[str, int] = {}
+    if prompt is not None:
+        normalized["prompt_tokens"] = int(round(prompt))
+    if completion is not None:
+        normalized["completion_tokens"] = int(round(completion))
+    if total is not None:
+        normalized["total_tokens"] = int(round(total))
+
+    if "total_tokens" not in normalized and (
+        "prompt_tokens" in normalized or "completion_tokens" in normalized
+    ):
+        normalized["total_tokens"] = normalized.get("prompt_tokens", 0) + normalized.get(
+            "completion_tokens", 0
+        )
+
+    return normalized or None
+
+
+def merge_usage(*usages: Any) -> dict[str, int] | None:
+    merged: dict[str, int] = {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0}
+    has_values = False
+    for usage in usages:
+        normalized = normalize_usage(usage)
+        if not normalized:
+            continue
+        has_values = True
+        merged["prompt_tokens"] += normalized.get("prompt_tokens", 0)
+        merged["completion_tokens"] += normalized.get("completion_tokens", 0)
+        merged["total_tokens"] += normalized.get("total_tokens", 0)
+
+    return merged if has_values else None
+
+
 def call_openrouter(payload: dict[str, Any], log_label: str) -> dict[str, Any]:
     import os
 
@@ -278,8 +343,19 @@ def translate_extraction_to_english(extracted_json: dict[str, Any]) -> dict[str,
             }
         ],
     }
+    started = time.perf_counter()
     response_payload = call_openrouter(payload, "translation")
-    content = get_message_content(
-        response_payload.get("choices", [{}])[0].get("message", {}).get("content")
-    )
-    return parse_model_json(content) if content else extracted_json
+    latency_ms = round((time.perf_counter() - started) * 1000, 2)
+
+    first_choice = response_payload.get("choices", [{}])[0]
+    message = first_choice.get("message", {})
+    content = get_message_content(message.get("content"))
+
+    return {
+        "extracted": parse_model_json(content) if content else extracted_json,
+        "usage": response_payload.get("usage"),
+        "model": response_payload.get("model") or first_choice.get("model"),
+        "requestedModel": payload.get("model"),
+        "latencyMs": latency_ms,
+        "maxTokensRequested": payload.get("max_tokens"),
+    }

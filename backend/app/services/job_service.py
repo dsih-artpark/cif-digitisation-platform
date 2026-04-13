@@ -14,12 +14,26 @@ from ..services.document_service import validate_and_normalize_data_url
 from ..services.extraction_service import (
     call_openrouter_for_extraction,
     has_multilingual_text,
+    merge_usage,
     translate_extraction_to_english,
 )
 from ..services.normalization_service import normalize_extraction
 from ..utils.time_utils import now_iso, parse_iso_to_ms
 
 jobs: dict[str, dict[str, Any]] = {}
+
+
+def resolve_model_label(models: list[str]) -> str:
+    unique_models = []
+    for model in models:
+        value = (model or "").strip()
+        if value and value not in unique_models:
+            unique_models.append(value)
+    if not unique_models:
+        return "N/A"
+    if len(unique_models) == 1:
+        return unique_models[0]
+    return " | ".join(unique_models)
 
 
 def create_job(file_name: str, file_type: str) -> dict[str, Any]:
@@ -189,11 +203,22 @@ async def process_job(job: dict[str, Any], payload: DigitizePayload) -> None:
             call_openrouter_for_extraction, normalized_data_url, preprocessing_metadata
         )
         extracted_data = extraction_output.get("extracted") or {}
+        models_used = [str(extraction_output.get("model") or "")]
+        total_latency_ms = float(extraction_output.get("latencyMs") or 0)
+        total_usage = extraction_output.get("usage")
+        translation_max_tokens = None
         if has_multilingual_text(extracted_data):
-            extracted_data = await asyncio.to_thread(
+            translation_output = await asyncio.to_thread(
                 translate_extraction_to_english, extracted_data
             )
+            extracted_data = translation_output.get("extracted") or extracted_data
+            models_used.append(str(translation_output.get("model") or ""))
+            total_latency_ms += float(translation_output.get("latencyMs") or 0)
+            total_usage = merge_usage(total_usage, translation_output.get("usage"))
+            translation_max_tokens = translation_output.get("maxTokensRequested")
             append_log(job, "Translated multilingual extracted fields to English")
+        else:
+            total_usage = merge_usage(total_usage)
         mark_stage_completed(job, 2)
 
         mark_stage_running(job, 3)
@@ -201,23 +226,21 @@ async def process_job(job: dict[str, Any], payload: DigitizePayload) -> None:
         mark_stage_completed(job, 3)
 
         mark_stage_running(job, 4)
-        extraction_usage = extraction_output.get("usage")
-        resolved_model = (
-            extraction_output.get("model") or extraction_output.get("requestedModel") or "N/A"
-        )
+        resolved_model = resolve_model_label(models_used)
         job["result"] = {
             **normalized,
             "metadata": {
                 "model": resolved_model,
-                "requestedModel": extraction_output.get("requestedModel"),
-                "latencyMs": extraction_output.get("latencyMs"),
+                "modelsUsed": [model for model in models_used if model.strip()],
+                "latencyMs": round(total_latency_ms, 2) if total_latency_ms > 0 else None,
                 "maxTokensRequested": extraction_output.get("maxTokensRequested"),
+                "translationMaxTokensRequested": translation_max_tokens,
                 "preprocessing": preprocessing_metadata,
-                "usage": extraction_usage,
+                "usage": total_usage,
                 "extractedAt": now_iso(),
             },
         }
-        job["usage"] = extraction_usage
+        job["usage"] = total_usage
         mark_stage_completed(job, 4)
 
         job["status"] = "completed"
