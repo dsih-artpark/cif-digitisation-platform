@@ -1,4 +1,3 @@
-import ArrowForwardRoundedIcon from "@mui/icons-material/ArrowForwardRounded";
 import MedicalServicesRoundedIcon from "@mui/icons-material/MedicalServicesRounded";
 import UploadFileRoundedIcon from "@mui/icons-material/UploadFileRounded";
 import {
@@ -26,7 +25,7 @@ const roleCards = [
     subtitle: "Field Data Operations",
     description:
       "For ASHA and data entry teams to upload CIF documents, edit case records, and verify entries for downstream medical review.",
-    buttonLabel: "Front Line Workers",
+    buttonLabel: "View Workspace",
     route: "/upload",
     icon: UploadFileRoundedIcon,
     accentColor: "#0f766e",
@@ -37,7 +36,7 @@ const roleCards = [
     subtitle: "Monitoring Access",
     description:
       "Focused access to dashboard metrics for clinical and administrative supervision of case trends and operational health.",
-    buttonLabel: "Medical Officers",
+    buttonLabel: "View Workspace",
     route: "/dashboard",
     icon: MedicalServicesRoundedIcon,
     accentColor: "#2563eb",
@@ -47,23 +46,17 @@ const roleCards = [
 const adminAccess = {
   role: DEMO_ROLES.ADMIN,
   title: "Admin",
-  buttonLabel: "Admin Login",
+  buttonLabel: "Login",
   route: "/dashboard",
 };
 
-function LandingPage({ authMessage = "", onAccessSelect = () => {} }) {
-  const [loginDialogOpen, setLoginDialogOpen] = useState(false);
-  const [selectedAccess, setSelectedAccess] = useState(null);
+function LandingPage({ authMessage = "", onLogin = () => {} }) {
+  const [roleInfoDialogOpen, setRoleInfoDialogOpen] = useState(false);
+  const [selectedRoleTitle, setSelectedRoleTitle] = useState("");
 
-  const openAuthDialog = (accessItem) => {
-    setSelectedAccess(accessItem);
-    setLoginDialogOpen(true);
-  };
-
-  const handleContinue = () => {
-    if (!selectedAccess) return;
-    setLoginDialogOpen(false);
-    onAccessSelect(selectedAccess.role);
+  const handleRoleCardClick = (roleTitle) => {
+    setSelectedRoleTitle(roleTitle);
+    setRoleInfoDialogOpen(true);
   };
 
   return (
@@ -131,7 +124,7 @@ function LandingPage({ authMessage = "", onAccessSelect = () => {} }) {
 
               <Button
                 variant="outlined"
-                onClick={() => openAuthDialog(adminAccess)}
+                onClick={onLogin}
                 sx={{
                   flexShrink: 0,
                   borderRadius: 2.5,
@@ -221,8 +214,7 @@ function LandingPage({ authMessage = "", onAccessSelect = () => {} }) {
 
                     <Button
                       variant="contained"
-                      endIcon={<ArrowForwardRoundedIcon />}
-                      onClick={() => openAuthDialog(role)}
+                      onClick={() => handleRoleCardClick(role.title)}
                       sx={{
                         mt: "auto",
                         borderRadius: 2.1,
@@ -248,20 +240,18 @@ function LandingPage({ authMessage = "", onAccessSelect = () => {} }) {
         </Grid>
       </Stack>
 
-      <Dialog open={loginDialogOpen} onClose={() => setLoginDialogOpen(false)} fullWidth maxWidth="xs">
-        <DialogTitle>{selectedAccess?.title || "User Access"}</DialogTitle>
+      <Dialog open={roleInfoDialogOpen} onClose={() => setRoleInfoDialogOpen(false)} fullWidth maxWidth="xs">
+        <DialogTitle>{selectedRoleTitle || "Workspace"}</DialogTitle>
         <DialogContent>
           <Stack spacing={1.25}>
             <Typography variant="body2" color="text.secondary">
-              Choose <strong>Login</strong> to open the selected CIF workspace.
+              Login is available only through the <strong>Login</strong> button at the top. These cards are for
+              workspace information.
             </Typography>
           </Stack>
         </DialogContent>
         <DialogActions sx={{ px: 2.5, pb: 2 }}>
-          <Button onClick={() => setLoginDialogOpen(false)}>Cancel</Button>
-          <Button variant="contained" onClick={handleContinue}>
-            Login
-          </Button>
+          <Button onClick={() => setRoleInfoDialogOpen(false)}>Close</Button>
         </DialogActions>
       </Dialog>
     </Box>

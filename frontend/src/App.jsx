@@ -16,7 +16,7 @@ import { Navigate, Route, Routes, useLocation, useNavigate } from "react-router-
 import Navbar from "./components/Navbar/Navbar";
 import {
   DEMO_ROLES,
-  appRoleMatchesAssignedRoles,
+  getAppRolesFromAssignedRoles,
   getRoleHome,
   isRouteAllowed,
 } from "./config/roleAccess";
@@ -35,6 +35,7 @@ import ProcessingPage from "./pages/ProcessingPage/ProcessingPage";
 import CaseReviewPage from "./pages/CaseReviewPage/CaseReviewPage";
 import Results from "./pages/Results/Results";
 import LandingPage from "./pages/LandingPage/LandingPage";
+import RoleSelectionPage from "./pages/RoleSelectionPage/RoleSelectionPage";
 import { useCif } from "./context/CifContext";
 
 const ROLE_STORAGE_KEY = "cif_demo_active_role";
@@ -122,6 +123,16 @@ function App() {
   const [analysisPreviewOpen, setAnalysisPreviewOpen] = useState(false);
   const isLandingPage = location.pathname === "/";
   const isAuthenticated = Boolean(authSession?.accessToken);
+  const availableAppRoles = useMemo(() => {
+    if (!isAuth0Configured()) {
+      return [
+        DEMO_ROLES.ADMIN,
+        DEMO_ROLES.FRONT_LINE_WORKER,
+        DEMO_ROLES.MEDICAL_OFFICER,
+      ];
+    }
+    return getAppRolesFromAssignedRoles(authSession?.roles || []);
+  }, [authSession?.roles]);
   const effectiveRole = activeRole;
   const roleHome = useMemo(() => getRoleHome(effectiveRole), [effectiveRole]);
   const showAnalysisPreview = effectiveRole === DEMO_ROLES.ADMIN && location.pathname === "/case-review";
@@ -139,23 +150,32 @@ function App() {
       setAuthReady(false);
       try {
         if (isAuth0Configured() && hasAuthCallbackParams()) {
-          const { requestedRole, session } = await completeAuth0Login();
+          const { session } = await completeAuth0Login();
           if (cancelled) return;
 
           setAuthSession(session);
-          if (!requestedRole || !appRoleMatchesAssignedRoles(requestedRole, session.roles)) {
+          const rolesAfterLogin = getAppRolesFromAssignedRoles(session.roles || []);
+          if (rolesAfterLogin.length === 0) {
             window.sessionStorage.removeItem(ROLE_STORAGE_KEY);
             setActiveRole("");
-            console.log(requestedRole, session.roles);
-            setAuthMessage("Access denied. Sign in with a user assigned to the selected CIF role.");
+            setAuthMessage("Access denied. Sign in with a user assigned to a CIF role.");
             navigate("/", { replace: true });
             return;
           }
 
-          window.sessionStorage.setItem(ROLE_STORAGE_KEY, requestedRole);
-          setActiveRole(requestedRole);
+          if (rolesAfterLogin.length === 1) {
+            const resolvedRole = rolesAfterLogin[0];
+            window.sessionStorage.setItem(ROLE_STORAGE_KEY, resolvedRole);
+            setActiveRole(resolvedRole);
+            setAuthMessage("");
+            navigate(getRoleHome(resolvedRole), { replace: true });
+            return;
+          }
+
+          window.sessionStorage.removeItem(ROLE_STORAGE_KEY);
+          setActiveRole("");
           setAuthMessage("");
-          navigate(getRoleHome(requestedRole), { replace: true });
+          navigate("/select-role", { replace: true });
           return;
         }
 
@@ -164,7 +184,22 @@ function App() {
 
         setAuthSession(storedSession);
         const storedRole = window.sessionStorage.getItem(ROLE_STORAGE_KEY) || "";
-        if (storedSession && storedRole && appRoleMatchesAssignedRoles(storedRole, storedSession.roles)) {
+        const mappedRoles = getAppRolesFromAssignedRoles(storedSession?.roles || []);
+
+        if (!storedSession || mappedRoles.length === 0) {
+          window.sessionStorage.removeItem(ROLE_STORAGE_KEY);
+          setActiveRole("");
+          return;
+        }
+
+        if (mappedRoles.length === 1) {
+          const resolvedRole = mappedRoles[0];
+          window.sessionStorage.setItem(ROLE_STORAGE_KEY, resolvedRole);
+          setActiveRole(resolvedRole);
+          return;
+        }
+
+        if (storedRole && mappedRoles.includes(storedRole)) {
           setActiveRole(storedRole);
         } else {
           window.sessionStorage.removeItem(ROLE_STORAGE_KEY);
@@ -192,24 +227,32 @@ function App() {
     };
   }, [navigate]);
 
-  const handleRoleSelect = useCallback(async (role) => {
+  const handleLogin = useCallback(async () => {
     setAuthMessage("");
     if (!isAuth0Configured()) {
-      if (typeof window !== "undefined") {
-        window.sessionStorage.setItem(ROLE_STORAGE_KEY, role);
-      }
-      setActiveRole(role);
+      navigate("/select-role");
       return;
     }
 
     setAuthReady(false);
     try {
-      await startAuth0Login(role);
+      await startAuth0Login();
     } catch (error) {
       setAuthReady(true);
       setAuthMessage(error instanceof Error ? error.message : "Unable to start sign in.");
     }
-  }, []);
+  }, [navigate]);
+
+  const handleWorkspaceSelect = useCallback(
+    (role) => {
+      if (!role || !availableAppRoles.includes(role)) return;
+      window.sessionStorage.setItem(ROLE_STORAGE_KEY, role);
+      setActiveRole(role);
+      setAuthMessage("");
+      navigate(getRoleHome(role), { replace: true });
+    },
+    [availableAppRoles, navigate]
+  );
 
   const performSignOut = useCallback(() => {
     if (typeof window !== "undefined") {
@@ -229,6 +272,29 @@ function App() {
       navigate("/", { replace: true });
     }
   }, [isAuthenticated, location.pathname, navigate]);
+
+  useEffect(() => {
+    if (activeRole || !authReady) return;
+    if (availableAppRoles.length !== 1) return;
+    const resolvedRole = availableAppRoles[0];
+    window.sessionStorage.setItem(ROLE_STORAGE_KEY, resolvedRole);
+    setActiveRole(resolvedRole);
+  }, [activeRole, authReady, availableAppRoles]);
+
+  useEffect(() => {
+    if (!authReady || activeRole) return;
+    if (!isAuth0Configured() || !isAuthenticated) return;
+    if (availableAppRoles.length <= 1) return;
+    if (location.pathname === "/select-role") return;
+    navigate("/select-role", { replace: true });
+  }, [
+    activeRole,
+    authReady,
+    availableAppRoles.length,
+    isAuthenticated,
+    location.pathname,
+    navigate,
+  ]);
 
   if (!authReady) {
     return (
@@ -267,8 +333,25 @@ function App() {
               element={
                 effectiveRole ? (
                   <Navigate to={roleHome} replace />
+                ) : isAuth0Configured() && isAuthenticated && availableAppRoles.length > 1 ? (
+                  <Navigate to="/select-role" replace />
                 ) : (
-                  <LandingPage authMessage={authMessage} onAccessSelect={handleRoleSelect} />
+                  <LandingPage authMessage={authMessage} onLogin={handleLogin} />
+                )
+              }
+            />
+            <Route
+              path="/select-role"
+              element={
+                effectiveRole ? (
+                  <Navigate to={roleHome} replace />
+                ) : isAuth0Configured() && !isAuthenticated ? (
+                  <Navigate to="/" replace />
+                ) : (
+                  <RoleSelectionPage
+                    availableRoles={availableAppRoles}
+                    onSelectRole={handleWorkspaceSelect}
+                  />
                 )
               }
             />

@@ -14,6 +14,12 @@ export const APP_ROLE_TO_AUTH0_ROLE = Object.fromEntries(
   Object.entries(AUTH0_ROLE_TO_APP_ROLE).map(([auth0Role, appRole]) => [appRole, auth0Role]),
 );
 
+export const ROLE_SELECTION_LABELS = {
+  [DEMO_ROLES.ADMIN]: "Admin",
+  [DEMO_ROLES.FRONT_LINE_WORKER]: "Front Line Worker",
+  [DEMO_ROLES.MEDICAL_OFFICER]: "Medical Officer",
+};
+
 export const ROLE_ACCESS = {
   [DEMO_ROLES.ADMIN]: {
     label: "User Analytics",
@@ -55,6 +61,16 @@ export function isRouteAllowed(role, path) {
 
 export function getAuth0RoleForAppRole(appRole) {
   return APP_ROLE_TO_AUTH0_ROLE[appRole] || "";
+}
+
+export function getAppRolesFromAssignedRoles(assignedRoles = []) {
+  if (!Array.isArray(assignedRoles) || assignedRoles.length === 0) {
+    return [];
+  }
+  const appRoles = assignedRoles
+    .map((role) => AUTH0_ROLE_TO_APP_ROLE[String(role).trim().toLowerCase()] || "")
+    .filter(Boolean);
+  return [...new Set(appRoles)];
 }
 
 export function appRoleMatchesAssignedRoles(appRole, assignedRoles = []) {

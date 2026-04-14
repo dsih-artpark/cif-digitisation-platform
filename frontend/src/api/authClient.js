@@ -1,5 +1,3 @@
-import { getAuth0RoleForAppRole } from "../config/roleAccess";
-
 function isLoopbackHost(hostname) {
   return ["localhost", "127.0.0.1", "::1", "[::1]"].includes(String(hostname || "").toLowerCase());
 }
@@ -53,7 +51,6 @@ const AUTH0_ROLE_CLAIM =
 const AUTH_SESSION_KEY = "cif_auth0_session";
 const AUTH_STATE_KEY = "cif_auth0_state";
 const AUTH_CODE_VERIFIER_KEY = "cif_auth0_code_verifier";
-const AUTH_REQUESTED_ROLE_KEY = "cif_requested_role";
 
 function toBase64Url(input) {
   const bytes = input instanceof Uint8Array ? input : new Uint8Array(input);
@@ -179,23 +176,14 @@ export function getAccessToken() {
   return getStoredSession()?.accessToken || "";
 }
 
-export function getRequestedAppRole() {
-  return window.sessionStorage.getItem(AUTH_REQUESTED_ROLE_KEY) || "";
-}
-
 export function clearStoredSession() {
   window.sessionStorage.removeItem(AUTH_SESSION_KEY);
-  window.sessionStorage.removeItem(AUTH_REQUESTED_ROLE_KEY);
   clearTransientAuthState();
 }
 
-export async function startAuth0Login(appRole) {
+export async function startAuth0Login() {
   if (!isAuth0Configured()) {
     throw new Error("Auth0 is not configured for this environment.");
-  }
-
-  if (!getAuth0RoleForAppRole(appRole)) {
-    throw new Error("Unknown application role selected.");
   }
 
   const state = randomString(32);
@@ -204,7 +192,6 @@ export async function startAuth0Login(appRole) {
 
   window.sessionStorage.setItem(AUTH_STATE_KEY, state);
   window.sessionStorage.setItem(AUTH_CODE_VERIFIER_KEY, codeVerifier);
-  window.sessionStorage.setItem(AUTH_REQUESTED_ROLE_KEY, appRole);
 
   const authorizeUrl = new URL(`https://${AUTH0_DOMAIN}/authorize`);
   authorizeUrl.searchParams.set("response_type", "code");
@@ -234,7 +221,6 @@ export async function completeAuth0Login() {
   const code = params.get("code") || "";
   const expectedState = window.sessionStorage.getItem(AUTH_STATE_KEY) || "";
   const codeVerifier = window.sessionStorage.getItem(AUTH_CODE_VERIFIER_KEY) || "";
-  const requestedRole = getRequestedAppRole();
 
   if (!code || !returnedState || returnedState !== expectedState || !codeVerifier) {
     clearTransientAuthState();
@@ -269,7 +255,7 @@ export async function completeAuth0Login() {
   persistSession(session);
   clearTransientAuthState();
   stripAuthQueryParams();
-  return { session, requestedRole };
+  return { session };
 }
 
 export function logoutFromAuth0() {
