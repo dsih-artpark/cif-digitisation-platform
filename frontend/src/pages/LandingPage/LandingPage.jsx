@@ -26,7 +26,7 @@ const roleCards = [
     subtitle: "Field Data Operations",
     description:
       "For ASHA and data entry teams to upload CIF documents, edit case records, and verify entries for downstream medical review.",
-    buttonLabel: "Login as Front Line Worker",
+    buttonLabel: "Front Line Workers",
     route: "/upload",
     icon: UploadFileRoundedIcon,
     accentColor: "#0f766e",
@@ -37,7 +37,7 @@ const roleCards = [
     subtitle: "Monitoring Access",
     description:
       "Focused access to dashboard metrics for clinical and administrative supervision of case trends and operational health.",
-    buttonLabel: "Login as Medical Officer",
+    buttonLabel: "Medical Officers",
     route: "/dashboard",
     icon: MedicalServicesRoundedIcon,
     accentColor: "#2563eb",
