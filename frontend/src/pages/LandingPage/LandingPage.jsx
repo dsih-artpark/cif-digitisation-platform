@@ -7,15 +7,10 @@ import {
   Card,
   CardContent,
   Chip,
-  Dialog,
-  DialogActions,
-  DialogContent,
-  DialogTitle,
   Grid,
   Stack,
   Typography,
 } from "@mui/material";
-import { useState } from "react";
 import { DEMO_ROLES } from "../../config/roleAccess";
 
 const roleCards = [
@@ -25,7 +20,7 @@ const roleCards = [
     subtitle: "Field Data Operations",
     description:
       "For ASHA and data entry teams to upload CIF documents, edit case records, and verify entries for downstream medical review.",
-    buttonLabel: "View Workspace",
+    buttonLabel: "Front Line Workers",
     route: "/upload",
     icon: UploadFileRoundedIcon,
     accentColor: "#0f766e",
@@ -36,7 +31,7 @@ const roleCards = [
     subtitle: "Monitoring Access",
     description:
       "Focused access to dashboard metrics for clinical and administrative supervision of case trends and operational health.",
-    buttonLabel: "View Workspace",
+    buttonLabel: "Medical Officers",
     route: "/dashboard",
     icon: MedicalServicesRoundedIcon,
     accentColor: "#2563eb",
@@ -51,14 +46,6 @@ const adminAccess = {
 };
 
 function LandingPage({ authMessage = "", onLogin = () => {} }) {
-  const [roleInfoDialogOpen, setRoleInfoDialogOpen] = useState(false);
-  const [selectedRoleTitle, setSelectedRoleTitle] = useState("");
-
-  const handleRoleCardClick = (roleTitle) => {
-    setSelectedRoleTitle(roleTitle);
-    setRoleInfoDialogOpen(true);
-  };
-
   return (
     <Box
       sx={{
@@ -214,7 +201,7 @@ function LandingPage({ authMessage = "", onLogin = () => {} }) {
 
                     <Button
                       variant="contained"
-                      onClick={() => handleRoleCardClick(role.title)}
+                      onClick={() => {}}
                       sx={{
                         mt: "auto",
                         borderRadius: 2.1,
@@ -239,21 +226,6 @@ function LandingPage({ authMessage = "", onLogin = () => {} }) {
           })}
         </Grid>
       </Stack>
-
-      <Dialog open={roleInfoDialogOpen} onClose={() => setRoleInfoDialogOpen(false)} fullWidth maxWidth="xs">
-        <DialogTitle>{selectedRoleTitle || "Workspace"}</DialogTitle>
-        <DialogContent>
-          <Stack spacing={1.25}>
-            <Typography variant="body2" color="text.secondary">
-              Login is available only through the <strong>Login</strong> button at the top. These cards are for
-              workspace information.
-            </Typography>
-          </Stack>
-        </DialogContent>
-        <DialogActions sx={{ px: 2.5, pb: 2 }}>
-          <Button onClick={() => setRoleInfoDialogOpen(false)}>Close</Button>
-        </DialogActions>
-      </Dialog>
     </Box>
   );
 }
