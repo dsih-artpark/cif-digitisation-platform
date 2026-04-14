@@ -4,6 +4,7 @@ import re
 from typing import Any
 
 from ..core.config import UNKNOWN_MARKERS
+from ..schemas.case_data import NormalizedCaseData
 
 
 def sanitize_value(value: Any) -> str:
@@ -167,60 +168,50 @@ def extract_contacts_fallback(raw_data: dict[str, Any]) -> str:
 def normalize_extraction(raw_data: dict[str, Any]) -> dict[str, Any]:
     fallback_age, fallback_sex = extract_age_and_sex_fallback(raw_data)
     fallback_contacts = extract_contacts_fallback(raw_data)
-    case_data = {
-        "patientName": sanitize_value(
-            first_available_value(raw_data, "patientName", "patient_name", "name", "fullName")
+    raw_case_data = {
+        "patientName": first_available_value(
+            raw_data, "patientName", "patient_name", "name", "fullName"
         ),
         "age": (
-            normalize_age(first_available_value(raw_data, "age", "patientAge", "ageYears"))
+            first_available_value(raw_data, "age", "patientAge", "ageYears")
             if first_available_value(raw_data, "age", "patientAge", "ageYears") is not None
             else fallback_age
         ),
         "sex": (
-            normalize_sex(first_available_value(raw_data, "sex", "gender", "patientSex"))
+            first_available_value(raw_data, "sex", "gender", "patientSex")
             if first_available_value(raw_data, "sex", "gender", "patientSex") is not None
             else fallback_sex
         ),
-        "locationVillage": sanitize_value(
-            first_available_value(raw_data, "locationVillage", "location", "village", "address")
+        "locationVillage": first_available_value(
+            raw_data, "locationVillage", "location", "village", "address"
         ),
-        "testDate": normalize_date(
-            first_available_value(raw_data, "testDate", "test_date", "date", "visitDate")
+        "testDate": first_available_value(raw_data, "testDate", "test_date", "date", "visitDate"),
+        "testType": first_available_value(raw_data, "testType", "test_type", "diagnosticTest"),
+        "result": first_available_value(
+            raw_data, "result", "testResult", "test_result", "diagnosis"
         ),
-        "testType": sanitize_value(
-            first_available_value(raw_data, "testType", "test_type", "diagnosticTest")
+        "pathogen": first_available_value(
+            raw_data, "pathogen", "species", "parasite", "malariaType"
         ),
-        "result": sanitize_value(
-            first_available_value(raw_data, "result", "testResult", "test_result", "diagnosis")
+        "treatment": first_available_value(
+            raw_data,
+            "treatment",
+            "medicines",
+            "treatment_given",
+            "medication",
+            "prescription",
         ),
-        "pathogen": sanitize_value(
-            first_available_value(raw_data, "pathogen", "species", "parasite", "malariaType")
-        ),
-        "treatment": normalize_treatment(
+        "temperature": first_available_value(raw_data, "temperature", "temp"),
+        "hbLevel": first_available_value(raw_data, "hbLevel", "hb", "hb_level", "haemoglobin"),
+        "contacts": (
             first_available_value(
                 raw_data,
-                "treatment",
-                "medicines",
-                "treatment_given",
-                "medication",
-                "prescription",
-            )
-        ),
-        "temperature": sanitize_value(first_available_value(raw_data, "temperature", "temp")),
-        "hbLevel": sanitize_value(
-            first_available_value(raw_data, "hbLevel", "hb", "hb_level", "haemoglobin")
-        ),
-        "contacts": (
-            sanitize_value(
-                first_available_value(
-                    raw_data,
-                    "contacts",
-                    "contact",
-                    "contactBS",
-                    "contact_bs",
-                    "contactCount",
-                    "contact_count",
-                )
+                "contacts",
+                "contact",
+                "contactBS",
+                "contact_bs",
+                "contactCount",
+                "contact_count",
             )
             if first_available_value(
                 raw_data,
@@ -235,6 +226,7 @@ def normalize_extraction(raw_data: dict[str, Any]) -> dict[str, Any]:
             else fallback_contacts
         ),
     }
+    case_data = NormalizedCaseData.model_validate(raw_case_data).model_dump()
     field_status = {
         key: ("Review Required" if value == "N/A" else "Verified")
         for key, value in case_data.items()

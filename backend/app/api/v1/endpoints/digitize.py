@@ -7,7 +7,10 @@ from fastapi import APIRouter, BackgroundTasks, File, Form, HTTPException, Reque
 from ....api.deps import ensure_digitize_access
 from ....core.config import MODEL_NAME
 from ....schemas.digitize import DigitizePayload
-from ....services.document_service import build_data_url_from_bytes, resolve_uploaded_mime_type
+from ....services.document_service import (
+    build_data_url_from_bytes,
+    resolve_uploaded_mime_type,
+)
 from ....services.job_service import build_snapshot, create_job, jobs, process_job
 from ....services.normalization_service import sanitize_value
 from ....utils.time_utils import now_iso
@@ -49,7 +52,7 @@ async def create_digitize_job(
     if file_name == "N/A" or file_type == "N/A":
         raise HTTPException(status_code=400, detail="File name and file type are required.")
 
-    job = create_job(payload.fileName, payload.fileType)
+    job = create_job(file_name, file_type)
     jobs[job["id"]] = job
     background_tasks.add_task(process_job, job, payload)
     return {"jobId": job["id"], "status": job["status"]}
