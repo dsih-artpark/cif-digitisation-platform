@@ -33,7 +33,7 @@ import Dashboard from "./pages/Dashboard/Dashboard";
 import UploadPage from "./pages/UploadPage/UploadPage";
 import ProcessingPage from "./pages/ProcessingPage/ProcessingPage";
 import CaseReviewPage from "./pages/CaseReviewPage/CaseReviewPage";
-import Reports from "./pages/Reports/Reports";
+import Results from "./pages/Results/Results";
 import LandingPage from "./pages/LandingPage/LandingPage";
 import { useCif } from "./context/CifContext";
 
@@ -321,14 +321,14 @@ function App() {
               }
             />
             <Route
-              path="/reports"
+              path="/results"
               element={
                 <RoleGuard
                   activeRole={activeRole}
                   isAuthenticated={isAuthenticated || !isAuth0Configured()}
-                  routePath="/reports"
+                  routePath="/results"
                 >
-                  <Reports />
+                  <Results activeRole={effectiveRole} />
                 </RoleGuard>
               }
             />

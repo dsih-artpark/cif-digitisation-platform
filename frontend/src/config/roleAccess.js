@@ -18,21 +18,22 @@ export const ROLE_ACCESS = {
   [DEMO_ROLES.ADMIN]: {
     label: "User Analytics",
     home: "/dashboard",
-    allowedRoutes: ["/dashboard", "/upload", "/processing", "/case-review", "/reports"],
+    allowedRoutes: ["/dashboard", "/upload", "/processing", "/case-review", "/results"],
     navItems: [
       { label: "Dashboard", path: "/dashboard" },
       { label: "Upload CIF", path: "/upload" },
       { label: "Case Records", path: "/case-review" },
-      { label: "Reports", path: "/reports" },
+      { label: "Results", path: "/results" },
     ],
   },
   [DEMO_ROLES.FRONT_LINE_WORKER]: {
     label: "Front Line Worker",
     home: "/upload",
-    allowedRoutes: ["/upload", "/processing", "/case-review"],
+    allowedRoutes: ["/upload", "/processing", "/case-review", "/results"],
     navItems: [
       { label: "Upload CIF", path: "/upload" },
       { label: "Case Records", path: "/case-review" },
+      { label: "Results", path: "/results" },
     ],
   },
   [DEMO_ROLES.MEDICAL_OFFICER]: {

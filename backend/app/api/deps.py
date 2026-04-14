@@ -7,3 +7,7 @@ from ..core.security import require_auth0_roles
 
 def ensure_digitize_access(request: Request) -> set[str]:
     return require_auth0_roles(request, {"admin", "flw"})
+
+
+def ensure_admin_access(request: Request) -> set[str]:
+    return require_auth0_roles(request, {"admin"})

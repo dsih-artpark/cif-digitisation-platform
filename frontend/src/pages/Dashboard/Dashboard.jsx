@@ -157,7 +157,7 @@ function Dashboard({ activeRole }) {
                 <Typography variant="h6">Recent Uploads</Typography>
               </Box>
               <Stack direction="row" spacing={1} sx={{ alignSelf: { xs: "flex-start", sm: "center" } }}>
-                <Button variant="outlined" size="small" onClick={() => navigate("/reports")}>
+                <Button variant="outlined" size="small" onClick={() => navigate("/results")}>
                   View More
                 </Button>
                 <Button
