@@ -4,33 +4,49 @@ const CifContext = createContext(null);
 const UPLOAD_HISTORY_STORAGE_KEY = "demoUploadHistory";
 
 const EMPTY_CASE_DATA = {
-  patientName: "N/A",
+  name_hindi: "N/A",
+  name_english: "N/A",
   age: "N/A",
   sex: "N/A",
-  locationVillage: "N/A",
-  testDate: "N/A",
-  testType: "N/A",
+  location: "N/A",
+  date: "N/A",
+  test_type: "N/A",
   result: "N/A",
   pathogen: "N/A",
   treatment: "N/A",
   temperature: "N/A",
-  hbLevel: "N/A",
+  hb_level: "N/A",
+  rbs: "N/A",
+  bp: "N/A",
   contacts: "N/A",
+  fever_onset_date: "N/A",
+  hh_total: "N/A",
+  hh_surveyed: "N/A",
+  individuals_tested: "N/A",
+  individuals_positive: "N/A",
 };
 
 const EMPTY_FIELD_STATUS = {
-  patientName: "Review Required",
+  name_hindi: "Review Required",
+  name_english: "Review Required",
   age: "Review Required",
   sex: "Review Required",
-  locationVillage: "Review Required",
-  testDate: "Review Required",
-  testType: "Review Required",
+  location: "Review Required",
+  date: "Review Required",
+  test_type: "Review Required",
   result: "Review Required",
   pathogen: "Review Required",
   treatment: "Review Required",
   temperature: "Review Required",
-  hbLevel: "Review Required",
+  hb_level: "Review Required",
+  rbs: "Review Required",
+  bp: "Review Required",
   contacts: "Review Required",
+  fever_onset_date: "Review Required",
+  hh_total: "Review Required",
+  hh_surveyed: "Review Required",
+  individuals_tested: "Review Required",
+  individuals_positive: "Review Required",
 };
 
 export function CifProvider({ children }) {
@@ -93,33 +109,56 @@ export function CifProvider({ children }) {
   const applyExtractionResult = useCallback((result, metadataOverrides = null) => {
     if (!result) return;
     const nextCaseData = {
-      patientName: result?.caseData?.patientName || "N/A",
-      age: result?.caseData?.age || "N/A",
-      sex: result?.caseData?.sex || "N/A",
-      locationVillage: result?.caseData?.locationVillage || "N/A",
-      testDate: result?.caseData?.testDate || "N/A",
-      testType: result?.caseData?.testType || "N/A",
-      result: result?.caseData?.result || "N/A",
-      pathogen: result?.caseData?.pathogen || "N/A",
-      treatment: result?.caseData?.treatment || "N/A",
-      temperature: result?.caseData?.temperature || "N/A",
-      hbLevel: result?.caseData?.hbLevel || "N/A",
-      contacts: result?.caseData?.contacts || "N/A",
+      name_hindi:
+        result?.caseData?.name_hindi ??
+        result?.caseData?.patientNameHindi ??
+        "N/A",
+      name_english:
+        result?.caseData?.name_english ??
+        result?.caseData?.patientName ??
+        result?.caseData?.fullName ??
+        "N/A",
+      age: result?.caseData?.age ?? "N/A",
+      sex: result?.caseData?.sex ?? "N/A",
+      location: result?.caseData?.location ?? result?.caseData?.locationVillage ?? "N/A",
+      date: result?.caseData?.date ?? result?.caseData?.testDate ?? "N/A",
+      test_type: result?.caseData?.test_type ?? result?.caseData?.testType ?? "N/A",
+      result: result?.caseData?.result ?? "N/A",
+      pathogen: result?.caseData?.pathogen ?? "N/A",
+      treatment: result?.caseData?.treatment ?? "N/A",
+      temperature: result?.caseData?.temperature ?? "N/A",
+      hb_level: result?.caseData?.hb_level ?? result?.caseData?.hbLevel ?? "N/A",
+      rbs: result?.caseData?.rbs ?? "N/A",
+      bp: result?.caseData?.bp ?? "N/A",
+      contacts: result?.caseData?.contacts ?? "N/A",
+      fever_onset_date: result?.caseData?.fever_onset_date ?? "N/A",
+      hh_total: result?.caseData?.hh_total ?? "N/A",
+      hh_surveyed: result?.caseData?.hh_surveyed ?? "N/A",
+      individuals_tested: result?.caseData?.individuals_tested ?? "N/A",
+      individuals_positive: result?.caseData?.individuals_positive ?? "N/A",
     };
 
     const nextFieldStatus = {
-      patientName: result?.fieldStatus?.patientName || "Review Required",
+      name_hindi: result?.fieldStatus?.name_hindi || "Review Required",
+      name_english: result?.fieldStatus?.name_english || "Review Required",
       age: result?.fieldStatus?.age || "Review Required",
       sex: result?.fieldStatus?.sex || "Review Required",
-      locationVillage: result?.fieldStatus?.locationVillage || "Review Required",
-      testDate: result?.fieldStatus?.testDate || "Review Required",
-      testType: result?.fieldStatus?.testType || "Review Required",
+      location: result?.fieldStatus?.location || "Review Required",
+      date: result?.fieldStatus?.date || "Review Required",
+      test_type: result?.fieldStatus?.test_type || "Review Required",
       result: result?.fieldStatus?.result || "Review Required",
       pathogen: result?.fieldStatus?.pathogen || "Review Required",
       treatment: result?.fieldStatus?.treatment || "Review Required",
       temperature: result?.fieldStatus?.temperature || "Review Required",
-      hbLevel: result?.fieldStatus?.hbLevel || "Review Required",
+      hb_level: result?.fieldStatus?.hb_level || "Review Required",
+      rbs: result?.fieldStatus?.rbs || "Review Required",
+      bp: result?.fieldStatus?.bp || "Review Required",
       contacts: result?.fieldStatus?.contacts || "Review Required",
+      fever_onset_date: result?.fieldStatus?.fever_onset_date || "Review Required",
+      hh_total: result?.fieldStatus?.hh_total || "Review Required",
+      hh_surveyed: result?.fieldStatus?.hh_surveyed || "Review Required",
+      individuals_tested: result?.fieldStatus?.individuals_tested || "Review Required",
+      individuals_positive: result?.fieldStatus?.individuals_positive || "Review Required",
     };
 
     setCaseData(nextCaseData);

@@ -9,50 +9,10 @@ import ValidationRules from "../../components/ValidationRules/ValidationRules";
 import { DEMO_ROLES } from "../../config/roleAccess";
 import { useCif } from "../../context/CifContext";
 
-function isValidDdmmyyyy(value) {
-  if (!value || String(value).toLowerCase() === "n/a") return false;
-  const pattern = /^(\d{2})-(\d{2})-(\d{4})$/;
-  const match = value.match(pattern);
-  if (!match) return false;
-  const day = Number(match[1]);
-  const month = Number(match[2]);
-  const year = Number(match[3]);
-  const date = new Date(year, month - 1, day);
-  return (
-    date.getFullYear() === year &&
-    date.getMonth() === month - 1 &&
-    date.getDate() === day
-  );
-}
-
-function isDateNotFuture(value) {
-  if (!isValidDdmmyyyy(value)) return false;
-  const [day, month, year] = value.split("-").map(Number);
-  const selected = new Date(year, month - 1, day);
-  const now = new Date();
-  selected.setHours(0, 0, 0, 0);
-  now.setHours(0, 0, 0, 0);
-  return selected <= now;
-}
-
 function isMissingValue(value) {
   if (value === null || value === undefined) return true;
   const normalized = String(value).trim().toLowerCase();
   return !normalized || normalized === "n/a" || normalized === "unknown";
-}
-
-function toDateInputValue(value) {
-  if (isMissingValue(value)) return "";
-  const match = String(value).trim().match(/^(\d{2})-(\d{2})-(\d{4})$/);
-  if (!match) return "";
-  return `${match[3]}-${match[2]}-${match[1]}`;
-}
-
-function fromDateInputValue(value) {
-  if (isMissingValue(value)) return "N/A";
-  const match = String(value).trim().match(/^(\d{4})-(\d{2})-(\d{2})$/);
-  if (!match) return String(value).trim();
-  return `${match[3]}-${match[2]}-${match[1]}`;
 }
 
 function isValidAgeValue(value) {
@@ -78,34 +38,81 @@ function isValidAgeValue(value) {
   return number <= 120;
 }
 
+function isValidDateValue(value) {
+  const text = String(value || "").trim();
+  if (!text || text.toLowerCase() === "n/a") return false;
+  const normalized = text.match(/^(\d{2})-(\d{2})-(\d{4})$/) || text.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+  if (!normalized) return false;
+  const day = Number(normalized[1]);
+  const month = Number(normalized[2]);
+  const year = Number(normalized[3]);
+  const date = new Date(year, month - 1, day);
+  return (
+    date.getFullYear() === year &&
+    date.getMonth() === month - 1 &&
+    date.getDate() === day
+  );
+}
+
+function isDateNotFuture(value) {
+  if (!isValidDateValue(value)) return false;
+  const text = String(value || "").trim();
+  const match = text.match(/^(\d{2})-(\d{2})-(\d{4})$/) || text.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+  if (!match) return false;
+  const day = Number(match[1]);
+  const month = Number(match[2]);
+  const year = Number(match[3]);
+  const selected = new Date(year, month - 1, day);
+  const now = new Date();
+  selected.setHours(0, 0, 0, 0);
+  now.setHours(0, 0, 0, 0);
+  return selected <= now;
+}
+
 const FIELD_SEVERITY = {
-  patientName: "Critical",
+  name_hindi: "Critical",
+  name_english: "Critical",
   age: "Critical",
   sex: "Critical",
   result: "Critical",
   pathogen: "Critical",
-  locationVillage: "High",
-  testDate: "High",
-  testType: "High",
+  location: "High",
+  date: "High",
+  test_type: "High",
+  fever_onset_date: "High",
   treatment: "Medium",
   temperature: "Medium",
-  hbLevel: "Medium",
+  hb_level: "Medium",
+  rbs: "Medium",
+  bp: "Medium",
   contacts: "Medium",
+  hh_total: "Medium",
+  hh_surveyed: "Medium",
+  individuals_tested: "Medium",
+  individuals_positive: "Medium",
 };
 
 const FIELD_LABELS = {
-  patientName: "Patient Name",
+  name_hindi: "Name (Hindi)",
+  name_english: "Name (English)",
   age: "Age",
-  sex: "Gender",
-  locationVillage: "Location/Village",
-  testDate: "Test Date",
-  testType: "Test Type",
+  sex: "Sex",
+  location: "Location/Village",
+  date: "Date",
+  test_type: "Test Type",
   result: "Result",
   pathogen: "Pathogen",
   treatment: "Treatment",
   temperature: "Temperature",
-  hbLevel: "HB Level",
+  hb_level: "HB Level",
+  rbs: "RBS",
+  bp: "BP",
   contacts: "Contacts",
+  fever_onset_date: "Fever Onset Date",
+  hh_total: "HH Total",
+  hh_surveyed: "HH Surveyed",
+  individuals_tested: "Individuals Tested",
+  individuals_positive: "Individuals Positive",
 };
 
 function CaseReviewPage({ activeRole = "" }) {
@@ -127,10 +134,16 @@ function CaseReviewPage({ activeRole = "" }) {
   const rows = useMemo(
     () => [
       {
-        key: "patientName",
-        label: "Patient Name",
-        value: caseData.patientName,
-        status: fieldStatus.patientName,
+        key: "name_hindi",
+        label: "Name (Hindi)",
+        value: caseData.name_hindi,
+        status: fieldStatus.name_hindi,
+      },
+      {
+        key: "name_english",
+        label: "Name (English)",
+        value: caseData.name_english,
+        status: fieldStatus.name_english,
       },
       {
         key: "age",
@@ -141,31 +154,32 @@ function CaseReviewPage({ activeRole = "" }) {
       },
       {
         key: "sex",
-        label: "Gender",
+        label: "Sex",
         value: caseData.sex,
         status: fieldStatus.sex,
         editorType: "select",
-        options: ["Male", "Female", "Other"],
-        placeholder: "Select gender",
+        options: ["M", "F"],
+        placeholder: "Select sex",
       },
       {
-        key: "locationVillage",
+        key: "location",
         label: "Location/Village",
-        value: caseData.locationVillage,
-        status: fieldStatus.locationVillage,
+        value: caseData.location,
+        status: fieldStatus.location,
       },
       {
-        key: "testDate",
-        label: "Test Date",
-        value: toDateInputValue(caseData.testDate),
-        status: fieldStatus.testDate,
+        key: "date",
+        label: "Date",
+        value: caseData.date,
+        status: fieldStatus.date,
         editorType: "date",
+        dateFormat: "dash",
       },
       {
-        key: "testType",
+        key: "test_type",
         label: "Test Type",
-        value: caseData.testType,
-        status: fieldStatus.testType,
+        value: caseData.test_type,
+        status: fieldStatus.test_type,
       },
       {
         key: "result",
@@ -196,10 +210,22 @@ function CaseReviewPage({ activeRole = "" }) {
         status: fieldStatus.temperature,
       },
       {
-        key: "hbLevel",
+        key: "hb_level",
         label: "HB Level",
-        value: caseData.hbLevel,
-        status: fieldStatus.hbLevel,
+        value: caseData.hb_level,
+        status: fieldStatus.hb_level,
+      },
+      {
+        key: "rbs",
+        label: "RBS",
+        value: caseData.rbs,
+        status: fieldStatus.rbs,
+      },
+      {
+        key: "bp",
+        label: "BP",
+        value: caseData.bp,
+        status: fieldStatus.bp,
       },
       {
         key: "contacts",
@@ -207,26 +233,71 @@ function CaseReviewPage({ activeRole = "" }) {
         value: caseData.contacts,
         status: fieldStatus.contacts,
       },
+      {
+        key: "fever_onset_date",
+        label: "Fever Onset Date",
+        value: caseData.fever_onset_date,
+        status: fieldStatus.fever_onset_date,
+        editorType: "date",
+        dateFormat: "slash",
+      },
+      {
+        key: "hh_total",
+        label: "HH Total",
+        value: caseData.hh_total,
+        status: fieldStatus.hh_total,
+      },
+      {
+        key: "hh_surveyed",
+        label: "HH Surveyed",
+        value: caseData.hh_surveyed,
+        status: fieldStatus.hh_surveyed,
+      },
+      {
+        key: "individuals_tested",
+        label: "Individuals Tested",
+        value: caseData.individuals_tested,
+        status: fieldStatus.individuals_tested,
+      },
+      {
+        key: "individuals_positive",
+        label: "Individuals Positive",
+        value: caseData.individuals_positive,
+        status: fieldStatus.individuals_positive,
+      },
     ],
     [caseData, fieldStatus]
   );
 
   const validationRules = useMemo(() => {
     const requiredKeys = [
-      "patientName",
+      "name_hindi",
+      "name_english",
       "age",
       "sex",
-      "locationVillage",
-      "testDate",
-      "testType",
+      "location",
+      "date",
+      "test_type",
       "result",
       "pathogen",
       "treatment",
       "temperature",
-      "hbLevel",
+      "hb_level",
+      "rbs",
+      "bp",
       "contacts",
+      "fever_onset_date",
+      "hh_total",
+      "hh_surveyed",
+      "individuals_tested",
+      "individuals_positive",
     ];
-    const missingFields = requiredKeys.filter((key) => isMissingValue(caseData[key]));
+    const missingFields = requiredKeys.filter((key) => {
+      if (key === "pathogen" && String(caseData.result || "").trim().toLowerCase() === "negative") {
+        return false;
+      }
+      return isMissingValue(caseData[key]);
+    });
     const missingBySeverity = {
       Critical: [],
       High: [],
@@ -255,8 +326,14 @@ function CaseReviewPage({ activeRole = "" }) {
     const hasDoseInfo = treatmentLines.some((item) => /\b\d+\s?(mg|ml|mcg|gm)\b/i.test(item));
     const verifiedCount = Object.values(fieldStatus).filter((status) => status === "Verified").length;
     const validAge = isValidAgeValue(caseData.age);
-    const validSex = ["male", "female", "other"].includes(normalizedSex);
+    const validSex = ["m", "f"].includes(normalizedSex);
     const validResult = ["positive", "negative"].includes(normalizedResult);
+    const validDate = isDateNotFuture(caseData.date);
+    const validFeverOnsetDate = isValidDateValue(caseData.fever_onset_date);
+    const validPathogen =
+      normalizedResult === "negative"
+        ? true
+        : ["pf", "pv", "mixed"].includes(String(caseData.pathogen || "").trim().toLowerCase());
 
     return [
       {
@@ -284,16 +361,16 @@ function CaseReviewPage({ activeRole = "" }) {
       {
         id: "date-validation",
         title: "Case Date Validation",
-        status: isDateNotFuture(caseData.testDate) ? "pass" : "error",
-        message: isDateNotFuture(caseData.testDate)
+        status: validDate ? "pass" : "error",
+        message: validDate
           ? "Date format is valid and not in the future."
           : "Date must be in DD-MM-YYYY format and not be future dated.",
       },
       {
         id: "sex-validation",
-        title: "Gender Validation",
+        title: "Sex Validation",
         status: validSex ? "pass" : "warning",
-        message: validSex ? "Gender field is captured in a supported format." : "Review gender field manually.",
+        message: validSex ? "Sex field is captured in a supported format." : "Review sex field manually.",
       },
       {
         id: "result-validation",
@@ -302,6 +379,22 @@ function CaseReviewPage({ activeRole = "" }) {
         message: validResult
           ? "Result field is captured as positive or negative."
           : "Review result field manually. Use positive or negative where applicable.",
+      },
+      {
+        id: "pathogen-validation",
+        title: "Pathogen Validation",
+        status: validPathogen ? "pass" : "warning",
+        message: validPathogen
+          ? "Pathogen field is captured in a supported format."
+          : "Review pathogen field manually. Use Pf, Pv, or Mixed where applicable.",
+      },
+      {
+        id: "fever-onset-validation",
+        title: "Fever Onset Validation",
+        status: validFeverOnsetDate ? "pass" : "warning",
+        message: validFeverOnsetDate
+          ? "Fever onset date is captured in DD/MM/YYYY format."
+          : "Review fever onset date manually. Use DD/MM/YYYY format.",
       },
       {
         id: "treatment-check",
@@ -325,8 +418,7 @@ function CaseReviewPage({ activeRole = "" }) {
   }, [caseData, fieldStatus]);
 
   const handleChange = (key, value) => {
-    const nextValue = key === "testDate" ? fromDateInputValue(value) : value;
-    setCaseData((prev) => ({ ...prev, [key]: nextValue }));
+    setCaseData((prev) => ({ ...prev, [key]: value }));
     setFieldStatus((prev) => ({ ...prev, [key]: "Review Required" }));
     setRecordStatus("Review Required");
   };

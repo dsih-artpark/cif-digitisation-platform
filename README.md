@@ -197,6 +197,7 @@ Application link:
 `https://cifdigitisation-demo.artpark.ai/`
 
 
-Software testing commands:
+Software testing commands:(Playwright)
+
 Local: npm run test:e2e
 npx playwright show-report - opens last HTML report

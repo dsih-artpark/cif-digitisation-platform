@@ -66,18 +66,26 @@ function buildReportLines({ caseData }) {
   return [
     "Extracted Case Report",
     "",
-    `Patient Name: ${caseData.patientName}`,
+    `Name (Hindi): ${caseData.name_hindi}`,
+    `Name (English): ${caseData.name_english}`,
     `Age: ${caseData.age}`,
-    `Gender: ${caseData.sex}`,
-    `Location/Village: ${caseData.locationVillage}`,
-    `Test Date: ${caseData.testDate}`,
-    `Test Type: ${caseData.testType}`,
+    `Sex: ${caseData.sex}`,
+    `Location/Village: ${caseData.location}`,
+    `Date: ${caseData.date}`,
+    `Test Type: ${caseData.test_type}`,
     `Result: ${formatResultDisplay(caseData.result)}`,
     `Pathogen: ${caseData.pathogen}`,
     `Treatment: ${caseData.treatment}`,
     `Temperature: ${caseData.temperature}`,
-    `HB Level: ${caseData.hbLevel}`,
+    `HB Level: ${caseData.hb_level}`,
+    `RBS: ${caseData.rbs}`,
+    `BP: ${caseData.bp}`,
     `Contacts: ${caseData.contacts}`,
+    `Fever Onset Date: ${caseData.fever_onset_date}`,
+    `HH Total: ${caseData.hh_total}`,
+    `HH Surveyed: ${caseData.hh_surveyed}`,
+    `Individuals Tested: ${caseData.individuals_tested}`,
+    `Individuals Positive: ${caseData.individuals_positive}`,
     "",
   ].flatMap((line) => wrapPdfLine(line));
 }
@@ -180,7 +188,9 @@ function CaseCard({ caseData, recordStatus, uploadedFile, onEditRecord }) {
     const blobUrl = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = blobUrl;
-    link.download = `${sanitizeFileName(uploadedFile?.name || caseData.patientName || "cif-report")}-report.pdf`;
+    link.download = `${sanitizeFileName(
+      uploadedFile?.name || caseData.name_english || caseData.name_hindi || "cif-report"
+    )}-report.pdf`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -219,18 +229,26 @@ function CaseCard({ caseData, recordStatus, uploadedFile, onEditRecord }) {
         <DialogTitle sx={{ pb: 0.8 }}>Case Record Preview</DialogTitle>
         <DialogContent>
           <Stack spacing={1.2} mb={2.5}>
-            <SummaryRow label="Patient Name" value={caseData.patientName} />
+            <SummaryRow label="Name (Hindi)" value={caseData.name_hindi} />
+            <SummaryRow label="Name (English)" value={caseData.name_english} />
             <SummaryRow label="Age" value={caseData.age} />
-            <SummaryRow label="Gender" value={caseData.sex} />
-            <SummaryRow label="Location/Village" value={caseData.locationVillage} />
-            <SummaryRow label="Test Date" value={caseData.testDate} />
-            <SummaryRow label="Test Type" value={caseData.testType} />
+            <SummaryRow label="Sex" value={caseData.sex} />
+            <SummaryRow label="Location/Village" value={caseData.location} />
+            <SummaryRow label="Date" value={caseData.date} />
+            <SummaryRow label="Test Type" value={caseData.test_type} />
             <SummaryRow label="Result" value={formatResultDisplay(caseData.result)} />
             <SummaryRow label="Pathogen" value={caseData.pathogen} />
             <SummaryRow label="Treatment" value={caseData.treatment} />
             <SummaryRow label="Temperature" value={caseData.temperature} />
-            <SummaryRow label="HB Level" value={caseData.hbLevel} />
+            <SummaryRow label="HB Level" value={caseData.hb_level} />
+            <SummaryRow label="RBS" value={caseData.rbs} />
+            <SummaryRow label="BP" value={caseData.bp} />
             <SummaryRow label="Contacts" value={caseData.contacts} />
+            <SummaryRow label="Fever Onset Date" value={caseData.fever_onset_date} />
+            <SummaryRow label="HH Total" value={caseData.hh_total} />
+            <SummaryRow label="HH Surveyed" value={caseData.hh_surveyed} />
+            <SummaryRow label="Individuals Tested" value={caseData.individuals_tested} />
+            <SummaryRow label="Individuals Positive" value={caseData.individuals_positive} />
           </Stack>
           <Stack direction="row" alignItems="center" spacing={1} mb={2}>
             <Typography color="text.secondary">Status:</Typography>

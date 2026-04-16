@@ -55,12 +55,45 @@ function normalizeAgeEditorValue(value) {
   return `${formattedNumber} ${unitLabel}`;
 }
 
+function toDateInputValue(value) {
+  const text = String(value ?? "").trim();
+  if (!text || text === "N/A") return "";
+
+  const dashMatch = text.match(/^(\d{2})-(\d{2})-(\d{4})$/);
+  if (dashMatch) {
+    return `${dashMatch[3]}-${dashMatch[2]}-${dashMatch[1]}`;
+  }
+
+  const slashMatch = text.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+  if (slashMatch) {
+    return `${slashMatch[3]}-${slashMatch[2]}-${slashMatch[1]}`;
+  }
+
+  const isoMatch = text.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (isoMatch) {
+    return text;
+  }
+
+  return "";
+}
+
+function fromDateInputValue(value, separator = "-") {
+  const text = String(value ?? "").trim();
+  if (!text) return "N/A";
+
+  const isoMatch = text.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!isoMatch) return text;
+  return `${isoMatch[3]}${separator}${isoMatch[2]}${separator}${isoMatch[1]}`;
+}
+
 function renderFieldEditor(row, onValueChange) {
   const displayValue =
     row.editorType === "select" || row.editorType === "date"
       ? row.value === "N/A"
         ? ""
-        : row.value ?? ""
+        : row.editorType === "date"
+          ? toDateInputValue(row.value)
+          : row.value ?? ""
       : row.value ?? "";
 
   const commonProps = {
@@ -92,6 +125,9 @@ function renderFieldEditor(row, onValueChange) {
         type="date"
         InputLabelProps={{ shrink: true }}
         placeholder="DD-MM-YYYY"
+        onChange={(event) =>
+          onValueChange(row.key, fromDateInputValue(event.target.value, row.dateFormat === "slash" ? "/" : "-"))
+        }
       />
     );
   }

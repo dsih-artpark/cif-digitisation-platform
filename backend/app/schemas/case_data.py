@@ -20,18 +20,28 @@ STATUS_ALIASES = {
 }
 
 SEX_ALIASES = {
-    "male": "Male",
-    "m": "Male",
-    "man": "Male",
-    "boy": "Male",
-    "female": "Female",
-    "f": "Female",
-    "woman": "Female",
-    "girl": "Female",
-    "other": "Other",
-    "transgender": "Other",
-    "non-binary": "Other",
-    "non binary": "Other",
+    "male": "M",
+    "m": "M",
+    "man": "M",
+    "boy": "M",
+    "female": "F",
+    "f": "F",
+    "woman": "F",
+    "girl": "F",
+}
+
+PATHOGEN_ALIASES = {
+    "mixed infection": "Mixed",
+    "mixed": "Mixed",
+    "mix": "Mixed",
+    "pf": "Pf",
+    "p. falciparum": "Pf",
+    "plasmodium falciparum": "Pf",
+    "falciparum": "Pf",
+    "pv": "Pv",
+    "p. vivax": "Pv",
+    "plasmodium vivax": "Pv",
+    "vivax": "Pv",
 }
 
 AGE_WITH_UNIT_PATTERN = re.compile(
@@ -44,6 +54,16 @@ BARE_AGE_PATTERN = re.compile(r"^\s*(?P<number>\d{1,3}(?:\.\d+)?)\s*$")
 AGE_PREFIX_PATTERN = re.compile(
     r"^\s*age\s*[:=-]?\s*(?P<number>\d{1,3}(?:\.\d+)?)\s*(?P<unit>years?|year|yrs?|yr|months?|month|mos?|mths?|mth|mo)?\s*$",
     re.IGNORECASE,
+)
+
+DATE_PATTERNS = (
+    "%d-%m-%Y",
+    "%d/%m/%Y",
+    "%Y-%m-%d",
+    "%d-%m-%y",
+    "%d/%m/%y",
+    "%Y/%m/%d",
+    "%d.%m.%Y",
 )
 
 
@@ -68,6 +88,21 @@ def normalize_text(value: Any) -> str:
     if not text or text.lower() in UNKNOWN_MARKERS:
         return "N/A"
     return text
+
+
+def normalize_date(value: Any, separator: str = "-") -> str:
+    text = normalize_text(value)
+    if text == "N/A":
+        return "N/A"
+
+    for fmt in DATE_PATTERNS:
+        try:
+            parsed = datetime.strptime(text, fmt)
+            return parsed.strftime(f"%d{separator}%m{separator}%Y")
+        except ValueError:
+            continue
+
+    return "N/A"
 
 
 def normalize_age(value: Any) -> str:
@@ -117,29 +152,8 @@ def normalize_sex(value: Any) -> str:
     normalized = SEX_ALIASES.get(text.lower())
     if normalized:
         return normalized
-    return text
-
-
-def normalize_date(value: Any) -> str:
-    text = normalize_text(value)
-    if text == "N/A":
-        return "N/A"
-
-    for fmt in (
-        "%d-%m-%Y",
-        "%d/%m/%Y",
-        "%Y-%m-%d",
-        "%d-%m-%y",
-        "%d/%m/%y",
-        "%Y/%m/%d",
-        "%d.%m.%Y",
-    ):
-        try:
-            parsed = datetime.strptime(text, fmt)
-            return parsed.strftime("%d-%m-%Y")
-        except ValueError:
-            continue
-
+    if text.upper() in {"M", "F"}:
+        return text.upper()
     return "N/A"
 
 
@@ -187,29 +201,19 @@ def normalize_number_text(value: Any) -> str:
     return number
 
 
-def normalize_hb_level(value: Any) -> str:
+def normalize_integer_text(value: Any) -> str:
     text = normalize_text(value)
     if text == "N/A":
         return "N/A"
 
-    match = re.search(r"\b(\d+(?:\.\d+)?)\s*([A-Za-z%]+)?\b", text)
+    match = re.search(r"\b\d+\b", text)
     if not match:
         return "N/A"
+    return match.group(0)
 
-    number = match.group(1)
-    if "." in number:
-        number = number.rstrip("0").rstrip(".")
-        if not number:
-            number = "0"
 
-    unit = (match.group(2) or "").strip()
-    if not unit:
-        return number
-
-    unit_lower = unit.lower()
-    if unit_lower in {"g", "gm", "gms", "gram", "grams"}:
-        unit = "gm"
-    return f"{number} {unit}"
+def normalize_hb_level(value: Any) -> str:
+    return normalize_number_text(value)
 
 
 def normalize_contacts(value: Any) -> str:
@@ -228,79 +232,60 @@ def normalize_contacts(value: Any) -> str:
     return "N/A"
 
 
+def normalize_pathogen(value: Any) -> str:
+    text = normalize_text(value)
+    if text == "N/A":
+        return "N/A"
+
+    lower = text.lower()
+    for key, normalized in PATHOGEN_ALIASES.items():
+        if key in lower:
+            return normalized
+
+    return "N/A"
+
+
 def normalize_result(value: Any) -> str:
     text = normalize_text(value)
     if text == "N/A":
         return "N/A"
 
-    clauses = [
-        clause.strip()
-        for clause in re.split(r"(?:\n|,|;|\||\band\b|&)", text, flags=re.IGNORECASE)
-        if clause and clause.strip()
-    ]
-    parsed_results: list[str] = []
-
-    for clause in clauses or [text]:
-        status_match = re.search(
-            r"\b(\+ve|positive|pos|-ve|negative|neg|not detected|detected)\b",
-            clause,
-            flags=re.IGNORECASE,
-        )
-        if not status_match:
-            continue
-
-        status = STATUS_ALIASES.get(status_match.group(1).lower())
-        if not status:
-            continue
-
-        remainder = (clause[: status_match.start()] + " " + clause[status_match.end() :]).strip()
-        remainder = re.sub(
-            r"\b(?:for|of|is|was|result|test|patient|case)\b",
-            " ",
-            remainder,
-            flags=re.IGNORECASE,
-        )
-        remainder = re.sub(r"\s+", " ", remainder).strip(" ,.-")
-        if remainder:
-            parsed_results.append(f"{remainder} {status}")
-        else:
-            parsed_results.append(status)
-
-    if not parsed_results:
-        single_status = re.search(
-            r"\b(\+ve|positive|pos|-ve|negative|neg|not detected|detected)\b",
-            text,
-            flags=re.IGNORECASE,
-        )
-        if single_status:
-            return STATUS_ALIASES.get(single_status.group(1).lower(), "N/A")
+    status_match = re.search(
+        r"\b(\+ve|positive|pos|-ve|negative|neg|not detected|detected)\b",
+        text,
+        flags=re.IGNORECASE,
+    )
+    if not status_match:
         return "N/A"
 
-    if len(parsed_results) == 1:
-        return (
-            parsed_results[0].split(" ", 1)[-1] if " " in parsed_results[0] else parsed_results[0]
-        )
-
-    return ", ".join(parsed_results)
+    return STATUS_ALIASES.get(status_match.group(1).lower(), "N/A")
 
 
 class NormalizedCaseData(BaseModel):
     model_config = ConfigDict(extra="ignore")
 
-    patientName: str = "N/A"
+    name_hindi: str = "N/A"
+    name_english: str = "N/A"
     age: str = "N/A"
     sex: str = "N/A"
-    locationVillage: str = "N/A"
-    testDate: str = "N/A"
-    testType: str = "N/A"
+    location: str = "N/A"
+    date: str = "N/A"
+    test_type: str = "N/A"
     result: str = "N/A"
     pathogen: str = "N/A"
     treatment: str = "N/A"
     temperature: str = "N/A"
-    hbLevel: str = "N/A"
+    hb_level: str = "N/A"
+    rbs: str = "N/A"
+    bp: str = "N/A"
     contacts: str = "N/A"
+    fever_onset_date: str = "N/A"
+    hh_total: str = "N/A"
+    hh_surveyed: str = "N/A"
+    individuals_tested: str = "N/A"
+    individuals_positive: str = "N/A"
 
-    @field_validator("patientName", "locationVillage", "testType", "pathogen", mode="before")
+    @field_validator("name_hindi", "name_english", "location", "test_type", "bp", mode="before")
     @classmethod
     def _normalize_text_fields(cls, value: Any) -> str:
         return normalize_text(value)
@@ -315,15 +300,25 @@ class NormalizedCaseData(BaseModel):
     def _normalize_sex(cls, value: Any) -> str:
         return normalize_sex(value)
 
-    @field_validator("testDate", mode="before")
+    @field_validator("date", mode="before")
     @classmethod
     def _normalize_test_date(cls, value: Any) -> str:
         return normalize_date(value)
+
+    @field_validator("fever_onset_date", mode="before")
+    @classmethod
+    def _normalize_fever_onset_date(cls, value: Any) -> str:
+        return normalize_date(value, separator="/")
 
     @field_validator("result", mode="before")
     @classmethod
     def _normalize_result(cls, value: Any) -> str:
         return normalize_result(value)
+
+    @field_validator("pathogen", mode="before")
+    @classmethod
+    def _normalize_pathogen(cls, value: Any) -> str:
+        return normalize_pathogen(value)
 
     @field_validator("treatment", mode="before")
     @classmethod
@@ -335,12 +330,19 @@ class NormalizedCaseData(BaseModel):
     def _normalize_temperature(cls, value: Any) -> str:
         return normalize_number_text(value)
 
-    @field_validator("hbLevel", mode="before")
+    @field_validator("hb_level", "rbs", mode="before")
     @classmethod
-    def _normalize_hb_level(cls, value: Any) -> str:
+    def _normalize_numeric_field(cls, value: Any) -> str:
         return normalize_hb_level(value)
 
     @field_validator("contacts", mode="before")
     @classmethod
     def _normalize_contacts(cls, value: Any) -> str:
         return normalize_contacts(value)
+
+    @field_validator(
+        "hh_total", "hh_surveyed", "individuals_tested", "individuals_positive", mode="before"
+    )
+    @classmethod
+    def _normalize_count_fields(cls, value: Any) -> str:
+        return normalize_integer_text(value)

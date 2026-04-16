@@ -97,22 +97,25 @@ def normalize_sex(value: Any) -> str:
 
     normalized = text.lower()
     if normalized in {"male", "m", "man", "boy"}:
-        return "Male"
+        return "M"
     if normalized in {"female", "f", "woman", "girl"}:
-        return "Female"
-    if normalized in {"other", "transgender", "non-binary", "non binary"}:
-        return "Other"
-    return sanitize_value(text)
+        return "F"
+    if normalized in {"m", "f"}:
+        return normalized.upper()
+    return "N/A"
 
 
-def normalize_date(value: Any) -> str:
+def normalize_date(value: Any, separator: str = "-") -> str:
     text = sanitize_value(value)
     if text == "N/A":
         return "N/A"
 
     ddmmyyyy = re.fullmatch(r"(\d{2})-(\d{2})-(\d{2,4})", text)
     if ddmmyyyy:
-        return text
+        day, month, year = ddmmyyyy.groups()
+        if len(year) == 2:
+            year = f"20{year}"
+        return f"{day}{separator}{month}{separator}{year}"
 
     slash_date = re.fullmatch(r"(\d{1,2})/(\d{1,2})/(\d{2,4})", text)
     if slash_date:
@@ -121,11 +124,11 @@ def normalize_date(value: Any) -> str:
         year = slash_date.group(3)
         if len(year) == 2:
             year = f"20{year}"
-        return f"{day}-{month}-{year}"
+        return f"{day}{separator}{month}{separator}{year}"
 
     iso_date = re.fullmatch(r"(\d{4})-(\d{1,2})-(\d{1,2})", text)
     if iso_date:
-        return f"{iso_date.group(3).zfill(2)}-{iso_date.group(2).zfill(2)}-{iso_date.group(1)}"
+        return f"{iso_date.group(3).zfill(2)}{separator}{iso_date.group(2).zfill(2)}{separator}{iso_date.group(1)}"
 
     return "N/A"
 
@@ -212,12 +215,47 @@ def extract_contacts_fallback(raw_data: dict[str, Any]) -> str:
     return sanitize_value(match.group(1))
 
 
+def normalize_pathogen(value: Any) -> str:
+    text = sanitize_value(value)
+    if text == "N/A":
+        return "N/A"
+
+    lower = text.lower()
+    if "mixed" in lower:
+        return "Mixed"
+    if any(token in lower for token in ("pf", "falciparum")):
+        return "Pf"
+    if any(token in lower for token in ("pv", "vivax")):
+        return "Pv"
+    return "N/A"
+
+
+def normalize_integer_text(value: Any) -> str:
+    text = sanitize_value(value)
+    if text == "N/A":
+        return "N/A"
+
+    match = re.search(r"\b\d+\b", text)
+    if not match:
+        return "N/A"
+    return match.group(0)
+
+
 def normalize_extraction(raw_data: dict[str, Any]) -> dict[str, Any]:
     fallback_age, fallback_sex = extract_age_and_sex_fallback(raw_data)
     fallback_contacts = extract_contacts_fallback(raw_data)
     raw_case_data = {
-        "patientName": first_available_value(
-            raw_data, "patientName", "patient_name", "name", "fullName"
+        "name_hindi": first_available_value(
+            raw_data, "name_hindi", "nameHindi", "patientNameHindi"
+        ),
+        "name_english": first_available_value(
+            raw_data,
+            "name_english",
+            "nameEnglish",
+            "patientName",
+            "patient_name",
+            "name",
+            "fullName",
         ),
         "age": (
             first_available_value(raw_data, "age", "patientAge", "ageYears")
@@ -229,11 +267,11 @@ def normalize_extraction(raw_data: dict[str, Any]) -> dict[str, Any]:
             if first_available_value(raw_data, "sex", "gender", "patientSex") is not None
             else fallback_sex
         ),
-        "locationVillage": first_available_value(
-            raw_data, "locationVillage", "location", "village", "address"
+        "location": first_available_value(
+            raw_data, "location", "locationVillage", "village", "address"
         ),
-        "testDate": first_available_value(raw_data, "testDate", "test_date", "date", "visitDate"),
-        "testType": first_available_value(raw_data, "testType", "test_type", "diagnosticTest"),
+        "date": first_available_value(raw_data, "date", "testDate", "test_date", "visitDate"),
+        "test_type": first_available_value(raw_data, "test_type", "testType", "diagnosticTest"),
         "result": first_available_value(
             raw_data, "result", "testResult", "test_result", "diagnosis"
         ),
@@ -249,7 +287,9 @@ def normalize_extraction(raw_data: dict[str, Any]) -> dict[str, Any]:
             "prescription",
         ),
         "temperature": first_available_value(raw_data, "temperature", "temp"),
-        "hbLevel": first_available_value(raw_data, "hbLevel", "hb", "hb_level", "haemoglobin"),
+        "hb_level": first_available_value(raw_data, "hb_level", "hbLevel", "hb", "haemoglobin"),
+        "rbs": first_available_value(raw_data, "rbs", "randomBloodSugar", "bloodSugar"),
+        "bp": first_available_value(raw_data, "bp", "bloodPressure"),
         "contacts": (
             first_available_value(
                 raw_data,
@@ -272,8 +312,23 @@ def normalize_extraction(raw_data: dict[str, Any]) -> dict[str, Any]:
             is not None
             else fallback_contacts
         ),
+        "fever_onset_date": first_available_value(
+            raw_data, "fever_onset_date", "feverOnsetDate", "fever_onset", "onsetDate"
+        ),
+        "hh_total": first_available_value(raw_data, "hh_total", "hhTotal", "householdsTotal"),
+        "hh_surveyed": first_available_value(
+            raw_data, "hh_surveyed", "hhSurveyed", "householdsSurveyed"
+        ),
+        "individuals_tested": first_available_value(
+            raw_data, "individuals_tested", "individualsTested"
+        ),
+        "individuals_positive": first_available_value(
+            raw_data, "individuals_positive", "individualsPositive"
+        ),
     }
     case_data = NormalizedCaseData.model_validate(raw_case_data).model_dump()
+    if case_data.get("result") == "Negative":
+        case_data["pathogen"] = ""
     field_status = {
         key: ("Review Required" if value == "N/A" else "Verified")
         for key, value in case_data.items()
