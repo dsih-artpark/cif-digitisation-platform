@@ -35,11 +35,10 @@ export const ROLE_ACCESS = {
   [DEMO_ROLES.FRONT_LINE_WORKER]: {
     label: "Front Line Worker",
     home: "/upload",
-    allowedRoutes: ["/upload", "/processing", "/case-review", "/results"],
+    allowedRoutes: ["/upload", "/processing", "/case-review"],
     navItems: [
       { label: "Upload CIF", path: "/upload" },
       { label: "Case Records", path: "/case-review" },
-      { label: "Results", path: "/results" },
     ],
   },
   [DEMO_ROLES.MEDICAL_OFFICER]: {

@@ -38,6 +38,7 @@ export function CifProvider({ children }) {
   const [previewUrl, setPreviewUrl] = useState("");
   const [uploadedDocuments, setUploadedDocuments] = useState([]);
   const [caseData, setCaseData] = useState(EMPTY_CASE_DATA);
+  const [extractedCaseData, setExtractedCaseData] = useState(EMPTY_CASE_DATA);
   const [fieldStatus, setFieldStatus] = useState(EMPTY_FIELD_STATUS);
   const [recordStatus, setRecordStatus] = useState("Review Required");
   const [processingJobId, setProcessingJobId] = useState("");
@@ -81,6 +82,7 @@ export function CifProvider({ children }) {
 
   const resetExtractionState = useCallback(() => {
     setCaseData(EMPTY_CASE_DATA);
+    setExtractedCaseData(EMPTY_CASE_DATA);
     setFieldStatus(EMPTY_FIELD_STATUS);
     setRecordStatus("Review Required");
     setProcessingError("");
@@ -121,6 +123,7 @@ export function CifProvider({ children }) {
     };
 
     setCaseData(nextCaseData);
+    setExtractedCaseData(nextCaseData);
     setFieldStatus(nextFieldStatus);
     setRecordStatus(result?.recordStatus || "Review Required");
     const baseMetadata =
@@ -154,6 +157,8 @@ export function CifProvider({ children }) {
       markCurrentUploadStatus,
       caseData,
       setCaseData,
+      extractedCaseData,
+      setExtractedCaseData,
       fieldStatus,
       setFieldStatus,
       recordStatus,
@@ -178,6 +183,7 @@ export function CifProvider({ children }) {
       markCurrentUploadStatus,
       caseData,
       fieldStatus,
+      extractedCaseData,
       recordStatus,
       processingJobId,
       processingError,

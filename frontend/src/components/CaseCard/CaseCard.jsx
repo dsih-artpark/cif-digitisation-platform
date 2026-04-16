@@ -14,6 +14,7 @@ import {
   Typography,
 } from "@mui/material";
 import { useState } from "react";
+import { formatResultDisplay } from "../../utils/resultDisplay";
 
 function sanitizeFileName(value = "cif-report") {
   return String(value)
@@ -67,11 +68,11 @@ function buildReportLines({ caseData }) {
     "",
     `Patient Name: ${caseData.patientName}`,
     `Age: ${caseData.age}`,
-    `Sex: ${caseData.sex}`,
+    `Gender: ${caseData.sex}`,
     `Location/Village: ${caseData.locationVillage}`,
     `Test Date: ${caseData.testDate}`,
     `Test Type: ${caseData.testType}`,
-    `Result: ${caseData.result}`,
+    `Result: ${formatResultDisplay(caseData.result)}`,
     `Pathogen: ${caseData.pathogen}`,
     `Treatment: ${caseData.treatment}`,
     `Temperature: ${caseData.temperature}`,
@@ -220,11 +221,11 @@ function CaseCard({ caseData, recordStatus, uploadedFile, onEditRecord }) {
           <Stack spacing={1.2} mb={2.5}>
             <SummaryRow label="Patient Name" value={caseData.patientName} />
             <SummaryRow label="Age" value={caseData.age} />
-            <SummaryRow label="Sex" value={caseData.sex} />
+            <SummaryRow label="Gender" value={caseData.sex} />
             <SummaryRow label="Location/Village" value={caseData.locationVillage} />
             <SummaryRow label="Test Date" value={caseData.testDate} />
             <SummaryRow label="Test Type" value={caseData.testType} />
-            <SummaryRow label="Result" value={caseData.result} />
+            <SummaryRow label="Result" value={formatResultDisplay(caseData.result)} />
             <SummaryRow label="Pathogen" value={caseData.pathogen} />
             <SummaryRow label="Treatment" value={caseData.treatment} />
             <SummaryRow label="Temperature" value={caseData.temperature} />

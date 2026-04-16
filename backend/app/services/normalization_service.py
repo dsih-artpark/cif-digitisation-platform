@@ -6,6 +6,18 @@ from typing import Any
 from ..core.config import UNKNOWN_MARKERS
 from ..schemas.case_data import NormalizedCaseData
 
+AGE_WITH_UNIT_PATTERN = re.compile(
+    r"\b(?P<number>\d{1,3}(?:\.\d+)?)\s*(?P<unit>years?|year|yrs?|yr|months?|month|mos?|mths?|mth|mo)\b",
+    re.IGNORECASE,
+)
+
+BARE_AGE_PATTERN = re.compile(r"^\s*(?P<number>\d{1,3}(?:\.\d+)?)\s*$")
+
+AGE_PREFIX_PATTERN = re.compile(
+    r"^\s*age\s*[:=-]?\s*(?P<number>\d{1,3}(?:\.\d+)?)\s*(?P<unit>years?|year|yrs?|yr|months?|month|mos?|mths?|mth|mo)?\s*$",
+    re.IGNORECASE,
+)
+
 
 def sanitize_value(value: Any) -> str:
     if value is None:
@@ -40,13 +52,42 @@ def first_available_value(raw_data: dict[str, Any], *keys: str) -> Any:
 def normalize_age(value: Any) -> str:
     if value is None:
         return "N/A"
-    match = re.search(r"\d{1,3}", str(value).strip())
-    if not match:
-        return sanitize_value(value)
-    age = int(match.group(0))
-    if age < 0 or age > 120:
+    text = sanitize_value(value)
+    if text == "N/A":
         return "N/A"
-    return str(age)
+
+    match = AGE_WITH_UNIT_PATTERN.search(text)
+    if not match:
+        match = AGE_PREFIX_PATTERN.match(text)
+    if not match:
+        age_only_match = BARE_AGE_PATTERN.match(text)
+        if age_only_match:
+            match = age_only_match
+    if not match:
+        return "N/A"
+
+    number_text = match.group("number")
+    unit_text = (match.groupdict().get("unit") or "").strip().lower()
+    try:
+        age = float(number_text)
+    except ValueError:
+        return "N/A"
+
+    if age < 0:
+        return "N/A"
+
+    formatted_number = str(int(age)) if age.is_integer() else number_text.rstrip("0").rstrip(".")
+    if unit_text in {"month", "months", "mo", "mos", "mth", "mths"}:
+        if age > 1200:
+            return "N/A"
+        unit_label = "month" if age == 1 else "months"
+        return f"{formatted_number} {unit_label}"
+
+    if age > 120:
+        return "N/A"
+
+    unit_label = "year" if age == 1 else "years"
+    return f"{formatted_number} {unit_label}"
 
 
 def normalize_sex(value: Any) -> str:
@@ -124,16 +165,22 @@ def extract_age_and_sex_fallback(raw_data: dict[str, Any]) -> tuple[str, str]:
         sex = normalize_sex(slash_match.group(2))
 
     if age == "N/A":
-        age_match = re.search(r"\bage\s*[:=-]?\s*(\d{1,3})\b", combined_text, flags=re.IGNORECASE)
+        age_match = re.search(
+            r"\bage\s*[:=-]?\s*(\d{1,3}(?:\.\d+)?)\s*(?:years?|yrs?|months?|mos?|mths?)?\b",
+            combined_text,
+            flags=re.IGNORECASE,
+        )
         if age_match:
-            age = normalize_age(age_match.group(1))
+            age = normalize_age(age_match.group(0))
 
     if age == "N/A":
         year_match = re.search(
-            r"\b(\d{1,3})\s*(?:years?|yrs?)\b", combined_text, flags=re.IGNORECASE
+            r"\b(\d{1,3}(?:\.\d+)?)\s*(?:years?|yrs?|months?|mos?|mths?)\b",
+            combined_text,
+            flags=re.IGNORECASE,
         )
         if year_match:
-            age = normalize_age(year_match.group(1))
+            age = normalize_age(year_match.group(0))
 
     if sex == "N/A":
         sex_match = re.search(

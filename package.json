@@ -1,0 +1,21 @@
+{
+  "name": "wif-digitisation-project",
+  "version": "1.0.0",
+  "description": "Case Investigation Form digitisation platform with: - `frontend/`: React + Vite UI - `backend/`: FastAPI server - `dist/`: built frontend served by the backend",
+  "main": "index.js",
+  "directories": {
+    "doc": "docs"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.59.1",
+    "@types/node": "^25.6.0"
+  },
+  "scripts": {
+    "test:e2e": "playwright test",
+    "test:e2e:headed": "playwright test --headed",
+    "test:e2e:ui": "playwright test --ui"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC"
+}

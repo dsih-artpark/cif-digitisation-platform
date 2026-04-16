@@ -1,9 +1,119 @@
-import { Chip, Paper, Stack, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, TextField, Typography, useMediaQuery, useTheme } from "@mui/material";
+import {
+  Chip,
+  MenuItem,
+  Paper,
+  Stack,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
+  TextField,
+  Typography,
+  useMediaQuery,
+  useTheme,
+} from "@mui/material";
 
 function statusColor(status) {
   if (status === "Verified") return "success";
   if (status === "Review Required") return "warning";
   return "info";
+}
+
+function normalizeAgeEditorValue(value) {
+  const text = String(value ?? "").trim();
+  if (!text) return "";
+
+  const withUnitMatch = text.match(
+    /\b(?<number>\d{1,3}(?:\.\d+)?)\s*(?<unit>years?|year|yrs?|yr|months?|month|mos?|mths?|mth|mo)\b/i
+  );
+  const agePrefixMatch = text.match(
+    /^\s*age\s*[:=-]?\s*(?<number>\d{1,3}(?:\.\d+)?)\s*(?<unit>years?|year|yrs?|yr|months?|month|mos?|mths?|mth|mo)?\s*$/i
+  );
+  const bareMatch = text.match(/^\s*(?<number>\d{1,3}(?:\.\d+)?)\s*$/);
+  const match = withUnitMatch || agePrefixMatch || bareMatch;
+  if (!match) return text;
+
+  const numberText = match.groups?.number || match[1];
+  const numericValue = Number(numberText);
+  if (!Number.isFinite(numericValue) || numericValue < 0) return text;
+
+  const formattedNumber = numberText.includes(".")
+    ? numberText.replace(/\.0+$/, "").replace(/\.$/, "")
+    : String(Math.trunc(numericValue));
+  const unit = (match.groups?.unit || "").toLowerCase();
+  const isMonthUnit = /month|mo|mth/.test(unit);
+  const unitLabel = isMonthUnit
+    ? numericValue === 1
+      ? "month"
+      : "months"
+    : numericValue === 1
+      ? "year"
+      : "years";
+
+  return `${formattedNumber} ${unitLabel}`;
+}
+
+function renderFieldEditor(row, onValueChange) {
+  const displayValue =
+    row.editorType === "select" || row.editorType === "date"
+      ? row.value === "N/A"
+        ? ""
+        : row.value ?? ""
+      : row.value ?? "";
+
+  const commonProps = {
+    fullWidth: true,
+    size: "small",
+    value: displayValue,
+    onChange: (event) => onValueChange(row.key, event.target.value),
+  };
+
+  if (row.editorType === "select") {
+    return (
+      <TextField {...commonProps} select SelectProps={{ displayEmpty: true }}>
+        <MenuItem value="" disabled>
+          {row.placeholder || "Select value"}
+        </MenuItem>
+        {(row.options || []).map((option) => (
+          <MenuItem key={option} value={option}>
+            {option}
+          </MenuItem>
+        ))}
+      </TextField>
+    );
+  }
+
+  if (row.editorType === "date") {
+    return (
+      <TextField
+        {...commonProps}
+        type="date"
+        InputLabelProps={{ shrink: true }}
+        placeholder="DD-MM-YYYY"
+      />
+    );
+  }
+
+  return (
+    <TextField
+      {...commonProps}
+      multiline={Boolean(row.multiline)}
+      minRows={row.multiline ? 3 : undefined}
+      inputProps={row.editorType === "age" ? { inputMode: "text" } : undefined}
+      onBlur={
+        row.editorType === "age"
+          ? (event) => {
+              const normalizedValue = normalizeAgeEditorValue(event.target.value);
+              if (normalizedValue !== row.value) {
+                onValueChange(row.key, normalizedValue);
+              }
+            }
+          : undefined
+      }
+    />
+  );
 }
 
 function CaseTable({ rows, onValueChange }) {
@@ -19,14 +129,7 @@ function CaseTable({ rows, onValueChange }) {
               <Typography variant="subtitle2">{row.label}</Typography>
               <Chip label={row.status} color={statusColor(row.status)} size="small" />
             </Stack>
-            <TextField
-              fullWidth
-              size="small"
-              value={row.value}
-              multiline={Boolean(row.multiline)}
-              minRows={row.multiline ? 3 : undefined}
-              onChange={(event) => onValueChange(row.key, event.target.value)}
-            />
+            {renderFieldEditor(row, onValueChange)}
           </Paper>
         ))}
       </Stack>
@@ -47,16 +150,7 @@ function CaseTable({ rows, onValueChange }) {
           {rows.map((row) => (
             <TableRow key={row.key} hover>
               <TableCell sx={{ width: "25%" }}>{row.label}</TableCell>
-              <TableCell>
-                <TextField
-                  fullWidth
-                  size="small"
-                  value={row.value}
-                  multiline={Boolean(row.multiline)}
-                  minRows={row.multiline ? 3 : undefined}
-                  onChange={(event) => onValueChange(row.key, event.target.value)}
-                />
-              </TableCell>
+              <TableCell>{renderFieldEditor(row, onValueChange)}</TableCell>
               <TableCell sx={{ width: "20%" }}>
                 <Chip label={row.status} color={statusColor(row.status)} size="small" />
               </TableCell>

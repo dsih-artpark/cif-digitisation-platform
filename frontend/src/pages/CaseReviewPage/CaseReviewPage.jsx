@@ -41,6 +41,43 @@ function isMissingValue(value) {
   return !normalized || normalized === "n/a" || normalized === "unknown";
 }
 
+function toDateInputValue(value) {
+  if (isMissingValue(value)) return "";
+  const match = String(value).trim().match(/^(\d{2})-(\d{2})-(\d{4})$/);
+  if (!match) return "";
+  return `${match[3]}-${match[2]}-${match[1]}`;
+}
+
+function fromDateInputValue(value) {
+  if (isMissingValue(value)) return "N/A";
+  const match = String(value).trim().match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!match) return String(value).trim();
+  return `${match[3]}-${match[2]}-${match[1]}`;
+}
+
+function isValidAgeValue(value) {
+  if (isMissingValue(value)) return false;
+  const text = String(value).trim();
+  const withUnitMatch = text.match(
+    /\b(\d{1,3}(?:\.\d+)?)\s*(years?|year|yrs?|yr|months?|month|mos?|mths?|mth|mo)\b/i
+  );
+  const agePrefixMatch = text.match(
+    /^\s*age\s*[:=-]?\s*(\d{1,3}(?:\.\d+)?)\s*(years?|year|yrs?|yr|months?|month|mos?|mths?|mth|mo)?\s*$/i
+  );
+  const bareMatch = text.match(/^\s*(\d{1,3}(?:\.\d+)?)\s*$/);
+  const match = withUnitMatch || agePrefixMatch || bareMatch;
+  if (!match) return false;
+
+  const number = Number(match[1]);
+  if (!Number.isFinite(number) || number < 0) return false;
+
+  const unit = (match[2] || "").toLowerCase();
+  if (unit && /month|mo|mth/.test(unit)) {
+    return number <= 1200;
+  }
+  return number <= 120;
+}
+
 const FIELD_SEVERITY = {
   patientName: "Critical",
   age: "Critical",
@@ -59,7 +96,7 @@ const FIELD_SEVERITY = {
 const FIELD_LABELS = {
   patientName: "Patient Name",
   age: "Age",
-  sex: "Sex",
+  sex: "Gender",
   locationVillage: "Location/Village",
   testDate: "Test Date",
   testType: "Test Type",
@@ -89,19 +126,62 @@ function CaseReviewPage({ activeRole = "" }) {
 
   const rows = useMemo(
     () => [
-      { key: "patientName", label: "Patient Name", value: caseData.patientName, status: fieldStatus.patientName },
-      { key: "age", label: "Age", value: caseData.age, status: fieldStatus.age },
-      { key: "sex", label: "Sex", value: caseData.sex, status: fieldStatus.sex },
+      {
+        key: "patientName",
+        label: "Patient Name",
+        value: caseData.patientName,
+        status: fieldStatus.patientName,
+      },
+      {
+        key: "age",
+        label: "Age",
+        value: caseData.age,
+        status: fieldStatus.age,
+        editorType: "age",
+      },
+      {
+        key: "sex",
+        label: "Gender",
+        value: caseData.sex,
+        status: fieldStatus.sex,
+        editorType: "select",
+        options: ["Male", "Female", "Other"],
+        placeholder: "Select gender",
+      },
       {
         key: "locationVillage",
         label: "Location/Village",
         value: caseData.locationVillage,
         status: fieldStatus.locationVillage,
       },
-      { key: "testDate", label: "Test Date", value: caseData.testDate, status: fieldStatus.testDate },
-      { key: "testType", label: "Test Type", value: caseData.testType, status: fieldStatus.testType },
-      { key: "result", label: "Result", value: caseData.result, status: fieldStatus.result },
-      { key: "pathogen", label: "Pathogen", value: caseData.pathogen, status: fieldStatus.pathogen },
+      {
+        key: "testDate",
+        label: "Test Date",
+        value: toDateInputValue(caseData.testDate),
+        status: fieldStatus.testDate,
+        editorType: "date",
+      },
+      {
+        key: "testType",
+        label: "Test Type",
+        value: caseData.testType,
+        status: fieldStatus.testType,
+      },
+      {
+        key: "result",
+        label: "Result",
+        value: caseData.result,
+        status: fieldStatus.result,
+        editorType: "select",
+        options: ["Positive", "Negative"],
+        placeholder: "Select result",
+      },
+      {
+        key: "pathogen",
+        label: "Pathogen",
+        value: caseData.pathogen,
+        status: fieldStatus.pathogen,
+      },
       {
         key: "treatment",
         label: "Treatment",
@@ -109,9 +189,24 @@ function CaseReviewPage({ activeRole = "" }) {
         status: fieldStatus.treatment,
         multiline: true,
       },
-      { key: "temperature", label: "Temperature", value: caseData.temperature, status: fieldStatus.temperature },
-      { key: "hbLevel", label: "HB Level", value: caseData.hbLevel, status: fieldStatus.hbLevel },
-      { key: "contacts", label: "Contacts", value: caseData.contacts, status: fieldStatus.contacts },
+      {
+        key: "temperature",
+        label: "Temperature",
+        value: caseData.temperature,
+        status: fieldStatus.temperature,
+      },
+      {
+        key: "hbLevel",
+        label: "HB Level",
+        value: caseData.hbLevel,
+        status: fieldStatus.hbLevel,
+      },
+      {
+        key: "contacts",
+        label: "Contacts",
+        value: caseData.contacts,
+        status: fieldStatus.contacts,
+      },
     ],
     [caseData, fieldStatus]
   );
@@ -151,16 +246,17 @@ function CaseReviewPage({ activeRole = "" }) {
         : "",
     ].filter(Boolean);
 
-    const ageNumber = Number(caseData.age);
     const normalizedSex = String(caseData.sex || "").trim().toLowerCase();
+    const normalizedResult = String(caseData.result || "").trim().toLowerCase();
     const treatmentLines = String(caseData.treatment || "")
       .split("\n")
       .map((item) => item.trim())
       .filter((value) => value && !isMissingValue(value));
     const hasDoseInfo = treatmentLines.some((item) => /\b\d+\s?(mg|ml|mcg|gm)\b/i.test(item));
     const verifiedCount = Object.values(fieldStatus).filter((status) => status === "Verified").length;
-    const validAge = !isMissingValue(caseData.age) && Number.isFinite(ageNumber) && ageNumber >= 0 && ageNumber <= 120;
+    const validAge = isValidAgeValue(caseData.age);
     const validSex = ["male", "female", "other"].includes(normalizedSex);
+    const validResult = ["positive", "negative"].includes(normalizedResult);
 
     return [
       {
@@ -181,7 +277,9 @@ function CaseReviewPage({ activeRole = "" }) {
         id: "age-validation",
         title: "Age Range Validation",
         status: validAge ? "pass" : "error",
-        message: validAge ? "Age format and range look valid." : "Age must be a number between 0 and 120.",
+        message: validAge
+          ? "Age format and range look valid."
+          : "Age should include a number with an optional years or months unit.",
       },
       {
         id: "date-validation",
@@ -193,9 +291,17 @@ function CaseReviewPage({ activeRole = "" }) {
       },
       {
         id: "sex-validation",
-        title: "Sex Validation",
+        title: "Gender Validation",
         status: validSex ? "pass" : "warning",
-        message: validSex ? "Sex field is captured in a supported format." : "Review sex field manually.",
+        message: validSex ? "Gender field is captured in a supported format." : "Review gender field manually.",
+      },
+      {
+        id: "result-validation",
+        title: "Result Validation",
+        status: validResult ? "pass" : "warning",
+        message: validResult
+          ? "Result field is captured as positive or negative."
+          : "Review result field manually. Use positive or negative where applicable.",
       },
       {
         id: "treatment-check",
@@ -219,7 +325,8 @@ function CaseReviewPage({ activeRole = "" }) {
   }, [caseData, fieldStatus]);
 
   const handleChange = (key, value) => {
-    setCaseData((prev) => ({ ...prev, [key]: value }));
+    const nextValue = key === "testDate" ? fromDateInputValue(value) : value;
+    setCaseData((prev) => ({ ...prev, [key]: nextValue }));
     setFieldStatus((prev) => ({ ...prev, [key]: "Review Required" }));
     setRecordStatus("Review Required");
   };

@@ -18,6 +18,7 @@ import { getRecentResults } from "../../api/resultsClient";
 import BackButton from "../../components/BackButton/BackButton";
 import { DEMO_ROLES } from "../../config/roleAccess";
 import { useCif } from "../../context/CifContext";
+import { formatResultDisplay } from "../../utils/resultDisplay";
 
 const RESULT_COLUMNS = [
   { key: "id", label: "ID" },
@@ -26,7 +27,7 @@ const RESULT_COLUMNS = [
   { key: "name_hindi", label: "Name (Hindi)" },
   { key: "name_english", label: "Name (English)" },
   { key: "age", label: "Age" },
-  { key: "sex", label: "Sex" },
+  { key: "sex", label: "Gender" },
   { key: "location", label: "Location" },
   { key: "date", label: "Date" },
   { key: "test_type", label: "Test Type" },
@@ -57,9 +58,10 @@ function createEmptyRow() {
   return Object.fromEntries(RESULT_COLUMNS.map((column) => [column.key, ""]));
 }
 
-function formatCellValue(value) {
+function formatCellValue(value, columnKey = "") {
   if (value === null || value === undefined) return "";
   if (typeof value === "number") return String(value);
+  if (columnKey === "result") return formatResultDisplay(value);
   if (typeof value === "string") return value;
   return String(value);
 }
@@ -219,7 +221,7 @@ function Results({ activeRole = "" }) {
                     {RESULT_COLUMNS.map((column) => (
                       <TableCell key={column.key} sx={{ verticalAlign: "top" }}>
                         <Typography variant="body2" sx={{ whiteSpace: "pre-wrap", minWidth: 80 }}>
-                          {formatCellValue(row?.[column.key])}
+                          {formatCellValue(row?.[column.key], column.key)}
                         </Typography>
                       </TableCell>
                     ))}

@@ -195,3 +195,8 @@ uv run --directory backend python -m uvicorn app:app --host 0.0.0.0 --port 8787 
 
 Application link:
 `https://cifdigitisation-demo.artpark.ai/`
+
+
+Software testing commands:
+Local: npm run test:e2e
+npx playwright show-report - opens last HTML report

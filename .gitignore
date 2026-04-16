@@ -16,3 +16,10 @@ Dummy_prescriptions/
 Digitisation/
 commands.md
 SARVAM_OCR_EVALUATION_ARCHITECTURE.md
+
+# Playwright
+/test-results/
+/playwright-report/
+/blob-report/
+/playwright/.cache/
+/playwright/.auth/
