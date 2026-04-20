@@ -7,13 +7,13 @@ from typing import Any
 
 from dotenv import load_dotenv
 
-load_dotenv()
+PROJECT_ROOT = Path(__file__).resolve().parents[3]
+load_dotenv(PROJECT_ROOT / ".env", override=True)
 
 PORT = int(os.getenv("API_PORT", "8787"))
 OPENROUTER_BASE_URL = os.getenv("OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1")
-MODEL_NAME = os.getenv("OPENROUTER_MODEL", "anthropic/claude-sonnet-4.6").strip()
+MODEL_NAME = os.getenv("OPENROUTER_MODEL", "openai/gpt-4o-mini").strip()
 
-PROJECT_ROOT = Path(__file__).resolve().parents[3]
 DEFAULT_SQLITE_DB_PATH = PROJECT_ROOT / "backend" / "data" / "cif.db"
 DATABASE_URL = os.getenv("DATABASE_URL", f"sqlite:///{DEFAULT_SQLITE_DB_PATH.as_posix()}").strip()
 FRONTEND_DIR = PROJECT_ROOT / "frontend"
@@ -30,6 +30,9 @@ AUTH0_ROLE_CLAIM = os.getenv(
     "AUTH0_ROLE_CLAIM", "https://cifdigitisation-demo.artpark.ai/roles"
 ).strip()
 AUTH0_ENABLED = bool(AUTH0_DOMAIN and AUTH0_AUDIENCE and AUTH0_ISSUER)
+AWS_REGION = os.getenv("AWS_REGION", os.getenv("AWS_DEFAULT_REGION", "")).strip()
+AWS_S3_BUCKET_NAME = os.getenv("AWS_S3_BUCKET_NAME", os.getenv("S3_BUCKET_NAME", "")).strip()
+AWS_S3_UPLOAD_PREFIX = os.getenv("AWS_S3_UPLOAD_PREFIX", "uploads").strip().strip("/")
 
 STAGE_DEFINITIONS: list[dict[str, Any]] = [
     {

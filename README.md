@@ -1,10 +1,5 @@
 # CIF Digitisation Platform
 
-Case Investigation Form digitisation platform with:
-- `frontend/`: React + Vite UI
-- `backend/`: FastAPI server
-- `dist/`: built frontend served by the backend
-
 ## Project Structure
 
 ```text
@@ -14,109 +9,43 @@ Case Investigation Form digitisation platform with:
 |-- dist/
 |-- scripts/
 |-- validation/
+|-- tests/
 |-- example.env
 |-- README.md
 ```
 
-## Prerequisites
-
-Install these first:
-- Python `3.12+`
-- Node.js `18+`
-- `uv`
-
-Useful links:
-- Python: `https://www.python.org/downloads/`
-- Node.js: `https://nodejs.org/`
-- uv: `https://docs.astral.sh/uv/getting-started/installation/`
-
-## 1. Clone The Project
-
-```bash
-git clone https://github.com/dsih-artpark/cif-digitisation-platform.git
-cd cif-digitisation-platform
-```
-
-If you already have the repo, just open the project root.
-
-## 2. Create Environment File
-
-Create `.env` in the project root using `example.env`.
-
-Example:
-
-```env
-# Backend
-API_PORT=8787
-OPENROUTER_BASE_URL=https://openrouter.ai/api/v1
-OPENROUTER_API_KEY=your_openrouter_api_key_here
-AUTH0_DOMAIN=your-tenant.us.auth0.com
-AUTH0_ISSUER=https://your-tenant.us.auth0.com/
-AUTH0_AUDIENCE=https://cifdigitisation-demo.artpark.ai/api
-AUTH0_ROLE_CLAIM=https://cifdigitisation-demo.artpark.ai/roles
-
-# Frontend
-VITE_API_BASE_URL=
-VITE_AUTH0_DOMAIN=your-tenant.us.auth0.com
-VITE_AUTH0_CLIENT_ID=your_auth0_client_id
-VITE_AUTH0_AUDIENCE=https://cifdigitisation-demo.artpark.ai/api
-VITE_AUTH0_REDIRECT_URI=http://localhost:5173
-VITE_AUTH0_ROLE_CLAIM=https://cifdigitisation-demo.artpark.ai/roles
-```
-
-Notes:
-- The landing page keeps the role cards, and the login button now opens Auth0.
-- The signed-in user only enters the selected workspace if their Auth0 role matches that card.
-- Leave `VITE_API_BASE_URL` empty unless you intentionally need a different API host. The frontend uses same-origin `/api/...` calls, and the Vite dev server proxies those requests to `http://localhost:8787`.
-
-## 3. Install Dependencies From Scratch
+## Run Locally
 
 From the project root:
 
-### Backend
-
 ```bash
 uv sync --directory backend
-```
-
-### Frontend
-
-```bash
 cd frontend
 npm install
 cd ..
 ```
 
-## 4. Start The Application Locally
-
-There are 2 ways to run the app.
-
-### Option A: Recommended Local Development
-
-Run frontend and backend separately.
-
-Frontend terminal:
+Start the frontend in one terminal:
 
 ```bash
 cd frontend
 npm run dev
 ```
 
-Backend terminal:
+Start the backend in another terminal:
 
 ```bash
 uv run python -m backend.main
 ```
 
-Open:
-- Frontend: `http://localhost:5173`
-- Backend API / backend-served app: `http://localhost:8787`
+Build the frontend when needed:
 
-This is the best mode while editing React files.
+```bash
+cd frontend
+npm run build
+```
 
-### Option B: Run Only From Backend
-
-Use this when you want the frontend to load from `localhost:8787`.
+Run the app from the backend only:
 
 ```bash
 cd frontend
@@ -125,79 +54,48 @@ cd ..
 uv run python -m backend.main
 ```
 
-Open:
-- `http://localhost:8787`
-
-Notes:
-- the backend serves the built files from `dist/`
-- the backend also checks frontend changes and rebuilds before serving when needed
-
-## 5. Helpful Commands
-
-Run backend:
-
-```bash
-uv run python -m backend.main
-```
-
-Run frontend only:
-
-```bash
-cd frontend
-npm run dev
-cd ..
-```
-
-Build frontend:
-
-```bash
-cd frontend
-npm run build
-cd ..
-```
-
-## 6. Run On Server
-
-On the server:
+## Pull From GitHub And Restart On Server
 
 ```bash
 cd ~/cif-digitisation-platform
-cp example.env .env
-nano .env
-```
-
-Then install and build:
-
-```bash
+git pull origin main
 uv sync --directory backend
 cd frontend
 npm ci
 npm run build
 cd ..
-```
-
-FastAPI-only deployment note:
-- Nginx is optional. The app can run directly on FastAPI/Uvicorn (`:8787`).
-- If you need production HTTPS with Auth0, terminate TLS at a load balancer/CDN and forward to port `8787`.
-
-If `cif-app` systemd service already exists:
-
-```bash
 sudo systemctl restart cif-app
 sudo systemctl status cif-app --no-pager
 ```
 
-If you want to run manually:
+Manual server start:
 
 ```bash
 uv run --directory backend python -m uvicorn app:app --host 0.0.0.0 --port 8787 --access-log
 ```
 
-Application link:
-`https://cifdigitisation-demo.artpark.ai/`
+## Software Testing
 
+Run Playwright tests:
 
-Software testing commands:(Playwright)
+```bash
+npm run test:e2e
+```
 
-Local: npm run test:e2e
-npx playwright show-report - opens last HTML report
+Run headed Playwright tests:
+
+```bash
+npm run test:e2e:headed
+```
+
+Run Playwright UI mode:
+
+```bash
+npm run test:e2e:ui
+```
+
+Open the latest HTML report:
+
+```bash
+npx playwright show-report
+```

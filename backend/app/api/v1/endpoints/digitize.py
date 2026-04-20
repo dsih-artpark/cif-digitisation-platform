@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
 from typing import Annotated, Any
 
 from fastapi import APIRouter, BackgroundTasks, File, Form, HTTPException, Request, UploadFile
@@ -9,13 +10,22 @@ from ....core.config import MODEL_NAME
 from ....schemas.digitize import DigitizePayload
 from ....services.document_service import (
     build_data_url_from_bytes,
+    parse_data_url,
     resolve_uploaded_mime_type,
 )
 from ....services.job_service import build_snapshot, create_job, jobs, process_job
 from ....services.normalization_service import sanitize_value
+from ....services.s3_service import upload_prescription_to_s3
 from ....utils.time_utils import now_iso
 
 router = APIRouter()
+
+
+@dataclass(slots=True)
+class ParsedDigitizeRequest:
+    payload: DigitizePayload
+    file_bytes: bytes
+    content_type: str
 
 
 def ensure_request_access(request: Request) -> None:
@@ -44,15 +54,23 @@ async def create_digitize_job(
 ) -> dict[str, Any]:
     ensure_request_access(request)
 
-    payload = await parse_digitize_payload(
+    submission = await parse_digitize_payload(
         request, file=file, file_name=file_name, file_type=file_type
     )
+    payload = submission.payload
     file_name = sanitize_value(payload.fileName)
     file_type = sanitize_value(payload.fileType)
     if file_name == "N/A" or file_type == "N/A":
         raise HTTPException(status_code=400, detail="File name and file type are required.")
 
     job = create_job(file_name, file_type)
+    s3_key = upload_prescription_to_s3(
+        file_bytes=submission.file_bytes,
+        file_name=file_name,
+        content_type=submission.content_type,
+        job_id=job["id"],
+    )
+    job["sourceS3Key"] = s3_key
     jobs[job["id"]] = job
     background_tasks.add_task(process_job, job, payload)
     return {"jobId": job["id"], "status": job["status"]}
@@ -75,7 +93,7 @@ async def parse_digitize_payload(
     file: UploadFile | None,
     file_name: str | None,
     file_type: str | None,
-) -> DigitizePayload:
+) -> ParsedDigitizeRequest:
     content_type = request.headers.get("content-type", "").lower()
 
     if "multipart/form-data" in content_type:
@@ -95,10 +113,14 @@ async def parse_digitize_payload(
                 status_code=400, detail="Uploaded file type could not be determined."
             )
 
-        return DigitizePayload(
-            fileName=resolved_file_name,
-            fileType=resolved_file_type,
-            fileDataUrl=build_data_url_from_bytes(uploaded_bytes, resolved_file_type),
+        return ParsedDigitizeRequest(
+            payload=DigitizePayload(
+                fileName=resolved_file_name,
+                fileType=resolved_file_type,
+                fileDataUrl=build_data_url_from_bytes(uploaded_bytes, resolved_file_type),
+            ),
+            file_bytes=uploaded_bytes,
+            content_type=resolved_file_type,
         )
 
     try:
@@ -107,4 +129,9 @@ async def parse_digitize_payload(
         raise HTTPException(
             status_code=400, detail="Invalid digitisation request payload."
         ) from exc
-    return payload
+    decoded_mime_type, decoded_bytes = parse_data_url(payload.fileDataUrl)
+    return ParsedDigitizeRequest(
+        payload=payload,
+        file_bytes=decoded_bytes,
+        content_type=decoded_mime_type,
+    )
