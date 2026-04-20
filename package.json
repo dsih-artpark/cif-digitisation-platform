@@ -7,14 +7,9 @@
     "doc": "docs"
   },
   "devDependencies": {
-    "@playwright/test": "^1.59.1",
     "@types/node": "^25.6.0"
   },
-  "scripts": {
-    "test:e2e": "playwright test",
-    "test:e2e:headed": "playwright test --headed",
-    "test:e2e:ui": "playwright test --ui"
-  },
+  "scripts": {},
   "keywords": [],
   "author": "",
   "license": "ISC"

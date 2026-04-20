@@ -9,7 +9,6 @@
 |-- dist/
 |-- scripts/
 |-- validation/
-|-- tests/
 |-- example.env
 |-- README.md
 ```
@@ -72,30 +71,4 @@ Manual server start:
 
 ```bash
 uv run --directory backend python -m uvicorn app:app --host 0.0.0.0 --port 8787 --access-log
-```
-
-## Software Testing
-
-Run Playwright tests:
-
-```bash
-npm run test:e2e
-```
-
-Run headed Playwright tests:
-
-```bash
-npm run test:e2e:headed
-```
-
-Run Playwright UI mode:
-
-```bash
-npm run test:e2e:ui
-```
-
-Open the latest HTML report:
-
-```bash
-npx playwright show-report
 ```
