@@ -16,24 +16,14 @@ import {
   useTheme,
 } from "@mui/material";
 import { useEffect, useRef, useState } from "react";
-import { getBoundaryGeoJson } from "../../api/geoClient";
 import { gadchiroliTalukaNames } from "../../data/gadchiroliVillageDirectory";
 
 const LEAFLET_CSS_ID = "leaflet-cdn-css";
 const LEAFLET_SCRIPT_ID = "leaflet-cdn-js";
 const LEAFLET_CSS_URL = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.css";
 const LEAFLET_SCRIPT_URL = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.js";
-const DEFAULT_GADCHIROLI_CENTER = [20.1849, 80.0066];
-const TALUKA_QUERY_SUFFIX = "tehsil, tahsil, taluka, Gadchiroli district, Maharashtra, India";
-const GADCHIROLI_TALUKAS = gadchiroliTalukaNames;
-
-const TALUKA_STYLE = {
-  color: "#a63b12",
-  fillColor: "#f28c28",
-  fillOpacity: 0.38,
-  weight: 3,
-  opacity: 1,
-};
+const MAHARASHTRA_CENTER = [19.7515, 75.7139];
+const GADCHIROLI_CENTER = [20.1849, 80.0066];
 
 function ensureLeafletAssets() {
   if (!document.getElementById(LEAFLET_CSS_ID)) {
@@ -76,48 +66,16 @@ function ensureLeafletAssets() {
   });
 }
 
-async function fetchTalukaFeature(talukaName) {
-  const normalizedTaluka = talukaName.replace(/\s*\(.*\)\s*/g, "").trim();
-  const queries = [
-    `${normalizedTaluka} ${TALUKA_QUERY_SUFFIX}`,
-    `${normalizedTaluka}, Gadchiroli district, Maharashtra, India`,
-    `${normalizedTaluka} tehsil, Gadchiroli district, Maharashtra, India`,
-    `${normalizedTaluka} tahsil, Gadchiroli district, Maharashtra, India`,
-    `${normalizedTaluka} taluka, Gadchiroli district, Maharashtra, India`,
-    `${talukaName}, Gadchiroli, Maharashtra, India`,
-  ];
-
-  let lastError = null;
-  for (const query of queries) {
-    try {
-      const geometry = await getBoundaryGeoJson(query);
-      return {
-        type: "Feature",
-        properties: {
-          taluka: talukaName,
-          query,
-        },
-        geometry,
-      };
-    } catch (error) {
-      lastError = error;
-    }
-  }
-
-  throw lastError || new Error(`Boundary shape is unavailable for ${talukaName}.`);
-}
-
 function IndiaMap() {
   const [isMaximized, setIsMaximized] = useState(false);
   const [isMapReady, setIsMapReady] = useState(false);
-  const [isBoundaryLoading, setIsBoundaryLoading] = useState(false);
-  const [selectedTaluka, setSelectedTaluka] = useState("");
+  const [selectedTehsil, setSelectedTehsil] = useState("");
+  const [mapError, setMapError] = useState("");
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
   const mapContainerRef = useRef(null);
   const mapInstanceRef = useRef(null);
-  const talukaLayerRef = useRef(null);
-  const loadRequestRef = useRef(0);
+  const markerRef = useRef(null);
 
   const mapHeight = isMobile ? (isMaximized ? 420 : 300) : isMaximized ? 540 : 360;
 
@@ -132,21 +90,38 @@ function IndiaMap() {
         if (isCancelled || !mapContainerRef.current) return;
 
         const map = leaflet.map(mapContainerRef.current, {
-          center: DEFAULT_GADCHIROLI_CENTER,
-          zoom: isMobile ? 8 : 9,
+          center: MAHARASHTRA_CENTER,
+          zoom: isMobile ? 5.5 : 6,
           zoomControl: true,
           zoomSnap: 0.25,
+          preferCanvas: true,
         });
+
+        leaflet
+          .tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+            attribution:
+              '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">OpenStreetMap</a> contributors',
+            updateWhenIdle: true,
+            keepBuffer: 4,
+          })
+          .addTo(map);
+
+        markerRef.current = leaflet
+          .marker(GADCHIROLI_CENTER)
+          .addTo(map)
+          .bindTooltip("Gadchiroli", {
+            permanent: true,
+            direction: "top",
+            offset: [0, -10],
+            opacity: 0.95,
+          });
 
         mapInstanceRef.current = map;
         setIsMapReady(true);
-      } catch {
+        setMapError("");
+      } catch (error) {
         if (!isCancelled) {
-          // Keep the map area plain if Leaflet fails to initialize.
-        }
-      } finally {
-        if (!isCancelled) {
-          setIsBoundaryLoading(false);
+          setMapError(error?.message || "Unable to load the map.");
         }
       }
     };
@@ -159,85 +134,18 @@ function IndiaMap() {
         mapInstanceRef.current.remove();
         mapInstanceRef.current = null;
       }
-      talukaLayerRef.current = null;
+      markerRef.current = null;
     };
   }, [isMobile]);
 
   useEffect(() => {
-    const map = mapInstanceRef.current;
-    const leaflet = window.L;
-    if (!map || !leaflet) return;
-
-    const requestId = ++loadRequestRef.current;
-    let isCancelled = false;
-
-    const updateBoundary = async () => {
-      if (talukaLayerRef.current) {
-        map.removeLayer(talukaLayerRef.current);
-        talukaLayerRef.current = null;
-      }
-
-      if (!selectedTaluka) {
-        setIsBoundaryLoading(false);
-        map.setView(DEFAULT_GADCHIROLI_CENTER, isMobile ? 8 : 9);
-        return;
-      }
-
-      setIsBoundaryLoading(true);
-
-      try {
-        const feature = await fetchTalukaFeature(selectedTaluka);
-        if (isCancelled || requestId !== loadRequestRef.current) return;
-
-        const layer = leaflet.geoJSON(feature, { style: TALUKA_STYLE });
-        layer.addTo(map);
-        talukaLayerRef.current = layer;
-
-        const bounds = layer.getBounds?.();
-        if (bounds?.isValid?.()) {
-          map.fitBounds(bounds, {
-            padding: [16, 16],
-            maxZoom: isMobile ? 10 : 11,
-          });
-        }
-      } catch (error) {
-        if (requestId === loadRequestRef.current) {
-          console.warn("Unable to load tehsil boundary:", error);
-        }
-      } finally {
-        if (!isCancelled && requestId === loadRequestRef.current) {
-          setIsBoundaryLoading(false);
-        }
-      }
-    };
-
-    updateBoundary();
-
-    return () => {
-      isCancelled = true;
-    };
-  }, [selectedTaluka, isMobile]);
-
-  useEffect(() => {
     if (!mapInstanceRef.current) return;
-
     const timeout = setTimeout(() => {
       mapInstanceRef.current?.invalidateSize();
-      if (selectedTaluka && talukaLayerRef.current) {
-        const bounds = talukaLayerRef.current.getBounds?.();
-        if (bounds?.isValid?.()) {
-          mapInstanceRef.current?.fitBounds(bounds, {
-            padding: [16, 16],
-            maxZoom: isMobile ? 10 : 11,
-          });
-        }
-      } else {
-        mapInstanceRef.current?.setView(DEFAULT_GADCHIROLI_CENTER, isMobile ? 8 : 9);
-      }
-    }, 260);
+    }, 220);
 
     return () => clearTimeout(timeout);
-  }, [isMaximized, isMobile, mapHeight, selectedTaluka]);
+  }, [isMaximized, isMobile, mapHeight, selectedTehsil]);
 
   return (
     <Card>
@@ -246,28 +154,24 @@ function IndiaMap() {
           <Typography variant="subtitle1" fontWeight={700}>
             Regional Trend Analysis - Gadchiroli Map
           </Typography>
-          <IconButton
-            onClick={() => setIsMaximized((prev) => !prev)}
-            size="small"
-            aria-label="maximize map"
-          >
+          <IconButton onClick={() => setIsMaximized((prev) => !prev)} size="small" aria-label="maximize map">
             {isMaximized ? <CloseFullscreenRoundedIcon /> : <OpenInFullRoundedIcon />}
           </IconButton>
         </Stack>
 
         <Stack spacing={1.5} mb={2}>
           <FormControl size="small" sx={{ minWidth: { xs: "100%", sm: 280 } }}>
-            <InputLabel id="taluka-select-label">Select Tehsil</InputLabel>
+            <InputLabel id="tehsil-select-label">Select Tehsil</InputLabel>
             <Select
-              labelId="taluka-select-label"
+              labelId="tehsil-select-label"
               label="Select Tehsil"
-              value={selectedTaluka}
-              onChange={(event) => setSelectedTaluka(event.target.value)}
+              value={selectedTehsil}
+              onChange={(event) => setSelectedTehsil(event.target.value)}
             >
               <MenuItem value="">All Tehsils</MenuItem>
-              {GADCHIROLI_TALUKAS.map((taluka) => (
-                <MenuItem key={taluka} value={taluka}>
-                  {taluka}
+              {gadchiroliTalukaNames.map((tehsil) => (
+                <MenuItem key={tehsil} value={tehsil}>
+                  {tehsil}
                 </MenuItem>
               ))}
             </Select>
@@ -281,7 +185,7 @@ function IndiaMap() {
             borderRadius: 1,
             overflow: "hidden",
             bgcolor: "#f8fbff",
-            transition: "height 0.3s ease",
+            transition: "height 0.25s ease",
             position: "relative",
           }}
         >
@@ -291,7 +195,7 @@ function IndiaMap() {
               width: "100%",
               height: "100%",
               background:
-                "linear-gradient(180deg, rgba(248,251,255,1) 0%, rgba(242,246,251,1) 100%)",
+                "radial-gradient(circle at 50% 42%, rgba(255,255,255,0.96) 0%, rgba(247,250,254,1) 55%, rgba(240,245,251,1) 100%)",
             }}
           />
           {!isMapReady && (
@@ -313,26 +217,30 @@ function IndiaMap() {
               <CircularProgress size={16} />
             </Stack>
           )}
-          {isBoundaryLoading && selectedTaluka && (
-            <Stack
-              direction="row"
-              spacing={1}
-              alignItems="center"
-              sx={{
-                position: "absolute",
-                top: 12,
-                right: 12,
-                bgcolor: "rgba(255,255,255,0.92)",
-                px: 1.25,
-                py: 0.75,
-                borderRadius: 1,
-                boxShadow: "0 1px 8px rgba(15, 45, 82, 0.08)",
-              }}
-            >
-              <CircularProgress size={16} />
-            </Stack>
-          )}
+          <Box
+            sx={{
+              position: "absolute",
+              left: 12,
+              bottom: 12,
+              bgcolor: "rgba(15, 45, 82, 0.92)",
+              color: "#fff",
+              px: 1.5,
+              py: 0.75,
+              borderRadius: 999,
+              fontSize: 13,
+              fontWeight: 700,
+              boxShadow: "0 8px 20px rgba(15, 45, 82, 0.18)",
+            }}
+          >
+            {selectedTehsil || "All Tehsils"}
+          </Box>
         </Box>
+
+        {mapError && (
+          <Box sx={{ mt: 1.5, color: "text.secondary", fontSize: 13 }}>
+            {mapError}
+          </Box>
+        )}
       </CardContent>
     </Card>
   );
