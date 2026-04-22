@@ -4,6 +4,10 @@ import {
   Card,
   CardContent,
   CircularProgress,
+  FormControl,
+  InputLabel,
+  MenuItem,
+  Select,
   Stack,
   Table,
   TableBody,
@@ -29,6 +33,8 @@ const RESULT_COLUMNS = [
   { key: "age", label: "Age" },
   { key: "sex", label: "Sex" },
   { key: "location", label: "Location" },
+  { key: "district", label: "District" },
+  { key: "village", label: "Village" },
   { key: "date", label: "Date" },
   { key: "test_type", label: "Test Type" },
   { key: "result", label: "Result" },
@@ -71,10 +77,16 @@ function formatCellValue(value, columnKey = "") {
   return String(value);
 }
 
+function normalizeFilterValue(value) {
+  return String(value ?? "").trim();
+}
+
 function Results({ activeRole = "" }) {
   const [adminRows, setAdminRows] = useState([]);
   const [isLoadingAdminRows, setIsLoadingAdminRows] = useState(false);
   const [adminError, setAdminError] = useState("");
+  const [districtFilter, setDistrictFilter] = useState("");
+  const [villageFilter, setVillageFilter] = useState("");
   const { caseData, recordStatus, extractionMetadata, uploadedFile, processingError } = useCif();
   const isAdmin = activeRole === DEMO_ROLES.ADMIN;
   const isFrontLineWorker = activeRole === DEMO_ROLES.FRONT_LINE_WORKER;
@@ -122,6 +134,8 @@ function Results({ activeRole = "" }) {
       age: caseData?.age || "",
       sex: caseData?.sex || "",
       location: caseData?.location || "",
+      district: caseData?.district || "",
+      village: caseData?.village || "",
       date: caseData?.date || "",
       test_type: caseData?.test_type || "",
       result: caseData?.result || "",
@@ -160,7 +174,7 @@ function Results({ activeRole = "" }) {
     uploadedFile?.type,
   ]);
 
-  const rows = useMemo(() => {
+  const baseRows = useMemo(() => {
     if (isAdmin) {
       if (adminRows.length > 0) return adminRows;
       return Array.from({ length: 10 }, () => createEmptyRow());
@@ -170,6 +184,40 @@ function Results({ activeRole = "" }) {
     }
     return [createEmptyRow()];
   }, [adminRows, isAdmin, isFrontLineWorker, latestSessionRow]);
+
+  const districtOptions = useMemo(() => {
+    if (!isAdmin) return [];
+    const values = new Set();
+    adminRows.forEach((row) => {
+      const value = normalizeFilterValue(row?.district || row?.location);
+      if (value) values.add(value);
+    });
+    return Array.from(values).sort((left, right) => left.localeCompare(right));
+  }, [adminRows, isAdmin]);
+
+  const villageOptions = useMemo(() => {
+    if (!isAdmin) return [];
+    const values = new Set();
+    adminRows.forEach((row) => {
+      const districtValue = normalizeFilterValue(row?.district || row?.location);
+      if (districtFilter && districtValue !== districtFilter) return;
+      const value = normalizeFilterValue(row?.village);
+      if (value) values.add(value);
+    });
+    return Array.from(values).sort((left, right) => left.localeCompare(right));
+  }, [adminRows, districtFilter, isAdmin]);
+
+  const rows = useMemo(() => {
+    if (!isAdmin) return baseRows;
+
+    return baseRows.filter((row) => {
+      const districtValue = normalizeFilterValue(row?.district || row?.location);
+      const villageValue = normalizeFilterValue(row?.village);
+      const matchesDistrict = !districtFilter || districtValue === districtFilter;
+      const matchesVillage = !villageFilter || villageValue === villageFilter;
+      return matchesDistrict && matchesVillage;
+    });
+  }, [baseRows, districtFilter, isAdmin, villageFilter]);
 
   return (
     <Stack spacing={2.5}>
@@ -190,6 +238,51 @@ function Results({ activeRole = "" }) {
           </Typography>
         </CardContent>
       </Card>
+
+      {isAdmin && (
+        <Card>
+          <CardContent>
+            <Stack direction={{ xs: "column", sm: "row" }} spacing={2}>
+              <FormControl size="small" sx={{ minWidth: 220 }}>
+                <InputLabel id="district-filter-label">District</InputLabel>
+                <Select
+                  labelId="district-filter-label"
+                  label="District"
+                  value={districtFilter}
+                  onChange={(event) => {
+                    setDistrictFilter(event.target.value);
+                    setVillageFilter("");
+                  }}
+                >
+                  <MenuItem value="">All Districts</MenuItem>
+                  {districtOptions.map((option) => (
+                    <MenuItem key={option} value={option}>
+                      {option}
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+
+              <FormControl size="small" sx={{ minWidth: 220 }}>
+                <InputLabel id="village-filter-label">Village</InputLabel>
+                <Select
+                  labelId="village-filter-label"
+                  label="Village"
+                  value={villageFilter}
+                  onChange={(event) => setVillageFilter(event.target.value)}
+                >
+                  <MenuItem value="">All Villages</MenuItem>
+                  {villageOptions.map((option) => (
+                    <MenuItem key={option} value={option}>
+                      {option}
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+            </Stack>
+          </CardContent>
+        </Card>
+      )}
 
       {isAdmin && isLoadingAdminRows && (
         <Stack direction="row" spacing={1} alignItems="center">

@@ -22,6 +22,8 @@ class OCRRecord(Base):
     age: Mapped[str | None] = mapped_column(String(64))
     sex: Mapped[str | None] = mapped_column(String(32))
     location: Mapped[str | None] = mapped_column(Text)
+    district: Mapped[str | None] = mapped_column(Text)
+    village: Mapped[str | None] = mapped_column(Text)
     date: Mapped[str | None] = mapped_column(String(64))
     test_type: Mapped[str | None] = mapped_column(String(128))
     result: Mapped[str | None] = mapped_column(Text)

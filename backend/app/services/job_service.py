@@ -22,6 +22,16 @@ from ..services.persistence_service import upsert_ocr_record
 from ..utils.time_utils import now_iso, parse_iso_to_ms
 
 jobs: dict[str, dict[str, Any]] = {}
+PUBLIC_PROCESSING_FAILURE_MESSAGE = (
+    "We could not finish processing this document right now. Please try again in a little while."
+)
+PUBLIC_CREDIT_FAILURE_MESSAGE = (
+    "Document processing is temporarily unavailable right now. Please try again later."
+)
+QUALITY_REDIRECT_MESSAGES = {
+    "The image is too dark. Please retake with better lighting.",
+    "The image is too bright. Please avoid excessive lighting and retake.",
+}
 
 
 def resolve_model_label(models: list[str]) -> str:
@@ -70,6 +80,31 @@ def append_log(job: dict[str, Any], message: str) -> None:
     job["logs"] = job["logs"][-200:]
     job["updatedAt"] = entry["timestamp"]
     logger.info("[%s] %s", job["id"], message)
+
+
+def format_public_processing_error(message: Any) -> str:
+    raw_message = str(message or "").strip()
+    if not raw_message:
+        return PUBLIC_PROCESSING_FAILURE_MESSAGE
+    if raw_message in QUALITY_REDIRECT_MESSAGES:
+        return raw_message
+
+    normalized = raw_message.lower()
+    if any(
+        keyword in normalized
+        for keyword in (
+            "credit",
+            "credits",
+            "balance",
+            "billing",
+            "payment required",
+            "quota",
+            "insufficient funds",
+        )
+    ):
+        return PUBLIC_CREDIT_FAILURE_MESSAGE
+
+    return PUBLIC_PROCESSING_FAILURE_MESSAGE
 
 
 def mark_stage_running(job: dict[str, Any], stage_index: int) -> None:
@@ -258,20 +293,24 @@ async def process_job(job: dict[str, Any], payload: DigitizePayload) -> None:
             job["stages"][running_stage_index]["status"] = "failed"
             job["stages"][running_stage_index]["completedAt"] = now_iso()
         job["status"] = "failed"
-        job["error"] = {"message": str(exc.detail)}
+        public_message = format_public_processing_error(exc.detail)
+        job["error"] = {"message": public_message}
         job["completedAt"] = now_iso()
         job["updatedAt"] = job["completedAt"]
-        append_log(job, f"Failed: {job['error']['message']}")
+        logger.warning("[%s] Job failed | raw=%s", job["id"], exc.detail)
+        append_log(job, f"Failed: {public_message}")
     except Exception as exc:  # pragma: no cover
         running_stage_index = get_running_stage_index(job)
         if running_stage_index >= 0:
             job["stages"][running_stage_index]["status"] = "failed"
             job["stages"][running_stage_index]["completedAt"] = now_iso()
         job["status"] = "failed"
-        job["error"] = {"message": str(exc) or "Digitisation failed."}
+        public_message = format_public_processing_error(str(exc) or "Digitisation failed.")
+        job["error"] = {"message": public_message}
         job["completedAt"] = now_iso()
         job["updatedAt"] = job["completedAt"]
-        append_log(job, f"Failed: {job['error']['message']}")
+        logger.exception("[%s] Job failed", job["id"])
+        append_log(job, f"Failed: {public_message}")
 
 
 async def cleanup_jobs_task() -> None:

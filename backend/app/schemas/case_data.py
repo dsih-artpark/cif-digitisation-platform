@@ -4,9 +4,10 @@ import re
 from datetime import datetime
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict, field_validator
+from pydantic import BaseModel, ConfigDict, field_validator, model_validator
 
 from ..core.config import UNKNOWN_MARKERS
+from ..utils.location_utils import split_location_triplet
 
 STATUS_ALIASES = {
     "+ve": "Positive",
@@ -269,6 +270,8 @@ class NormalizedCaseData(BaseModel):
     age: str = "N/A"
     sex: str = "N/A"
     location: str = "N/A"
+    district: str = "N/A"
+    village: str = "N/A"
     date: str = "N/A"
     test_type: str = "N/A"
     result: str = "N/A"
@@ -285,7 +288,33 @@ class NormalizedCaseData(BaseModel):
     individuals_tested: str = "N/A"
     individuals_positive: str = "N/A"
 
-    @field_validator("name_hindi", "name_english", "location", "test_type", "bp", mode="before")
+    @model_validator(mode="before")
+    @classmethod
+    def _normalize_location_triplet(cls, values: Any) -> Any:
+        if not isinstance(values, dict):
+            return values
+
+        normalized_values = dict(values)
+        triplet = split_location_triplet(
+            normalized_values.get("location"),
+            normalized_values.get("district"),
+            normalized_values.get("village"),
+        )
+        normalized_values["location"] = triplet["location"]
+        normalized_values["district"] = triplet["district"]
+        normalized_values["village"] = triplet["village"]
+        return normalized_values
+
+    @field_validator(
+        "name_hindi",
+        "name_english",
+        "location",
+        "district",
+        "village",
+        "test_type",
+        "bp",
+        mode="before",
+    )
     @classmethod
     def _normalize_text_fields(cls, value: Any) -> str:
         return normalize_text(value)

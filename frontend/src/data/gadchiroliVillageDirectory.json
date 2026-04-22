@@ -1,0 +1,91 @@
+{
+  "district": "Gadchiroli",
+  "state": "Maharashtra",
+  "sourceUrl": "https://vlist.in/district/508.html",
+  "talukas": [
+    {
+      "name": "Aheri",
+      "censusCode": "04062",
+      "villageCount": 184,
+      "sourceUrl": "https://vlist.in/sub-district/04062.html",
+      "villages": []
+    },
+    {
+      "name": "Armori",
+      "censusCode": "04053",
+      "villageCount": 103,
+      "sourceUrl": "https://vlist.in/sub-district/04053.html",
+      "villages": []
+    },
+    {
+      "name": "Bhamragad",
+      "censusCode": "04061",
+      "villageCount": 128,
+      "sourceUrl": "https://vlist.in/sub-district/04061.html",
+      "villages": []
+    },
+    {
+      "name": "Chamorshi",
+      "censusCode": "04058",
+      "villageCount": 204,
+      "sourceUrl": "https://vlist.in/sub-district/04058.html",
+      "villages": []
+    },
+    {
+      "name": "Desaiganj (Vadasa)",
+      "censusCode": "04052",
+      "villageCount": 37,
+      "sourceUrl": "https://vlist.in/sub-district/04052.html",
+      "villages": []
+    },
+    {
+      "name": "Dhanora",
+      "censusCode": "04056",
+      "villageCount": 228,
+      "sourceUrl": "https://vlist.in/sub-district/04056.html",
+      "villages": []
+    },
+    {
+      "name": "Etapalli",
+      "censusCode": "04060",
+      "villageCount": 197,
+      "sourceUrl": "https://vlist.in/sub-district/04060.html",
+      "villages": []
+    },
+    {
+      "name": "Gadchiroli",
+      "censusCode": "04057",
+      "villageCount": 123,
+      "sourceUrl": "https://vlist.in/sub-district/04057.html",
+      "villages": []
+    },
+    {
+      "name": "Korchi",
+      "censusCode": "04055",
+      "villageCount": 133,
+      "sourceUrl": "https://vlist.in/sub-district/04055.html",
+      "villages": []
+    },
+    {
+      "name": "Kurkheda",
+      "censusCode": "04054",
+      "villageCount": 128,
+      "sourceUrl": "https://vlist.in/sub-district/04054.html",
+      "villages": []
+    },
+    {
+      "name": "Mulchera",
+      "censusCode": "04059",
+      "villageCount": 68,
+      "sourceUrl": "https://vlist.in/sub-district/04059.html",
+      "villages": []
+    },
+    {
+      "name": "Sironcha",
+      "censusCode": "04063",
+      "villageCount": 148,
+      "sourceUrl": "https://vlist.in/sub-district/04063.html",
+      "villages": []
+    }
+  ]
+}

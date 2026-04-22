@@ -49,6 +49,21 @@ export const casesByState = [
   { state: "Rajasthan", cases: 215 },
 ];
 
+export const gadchiroliTalukaCases = [
+  { taluka: "Gadchiroli", cases: 44 },
+  { taluka: "Armori", cases: 36 },
+  { taluka: "Kurkheda", cases: 31 },
+  { taluka: "Dhanora", cases: 28 },
+  { taluka: "Chamorshi", cases: 39 },
+  { taluka: "Sironcha", cases: 24 },
+  { taluka: "Desaiganj (Vadasa)", cases: 33 },
+  { taluka: "Korchi", cases: 22 },
+  { taluka: "Bhamragad", cases: 18 },
+  { taluka: "Mulchera", cases: 27 },
+  { taluka: "Aheri", cases: 41 },
+  { taluka: "Etapalli", cases: 20 },
+];
+
 export const regionalTrend = [
   { week: "Week 1", north: 30, south: 25, east: 20, west: 22 },
   { week: "Week 2", north: 32, south: 27, east: 21, west: 25 },
@@ -58,6 +73,7 @@ export const regionalTrend = [
 ];
 
 export const stateMapDetails = {
+  Gadchiroli: { cases: 430, trend: "+8% vs last week" },
   Maharashtra: { cases: 430, trend: "+8% vs last week" },
   "Uttar Pradesh": { cases: 512, trend: "+6% vs last week" },
   "Tamil Nadu": { cases: 301, trend: "+4% vs last week" },
@@ -71,6 +87,7 @@ export const stateMapDetails = {
 };
 
 const stateModelConfig = {
+  Gadchiroli: { growth: 8, urbanShare: 0.34, verifiedRate: 0.91, followUpRate: 0.18, newCaseRate: 0.07 },
   Maharashtra: { growth: 8, urbanShare: 0.71, verifiedRate: 0.91, followUpRate: 0.18, newCaseRate: 0.07 },
   "Uttar Pradesh": {
     growth: 6,

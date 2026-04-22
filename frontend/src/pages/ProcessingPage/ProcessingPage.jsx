@@ -21,9 +21,35 @@ const QUALITY_REDIRECT_MESSAGES = [
   "The image is too dark. Please retake with better lighting.",
   "The image is too bright. Please avoid excessive lighting and retake.",
 ];
+const PUBLIC_CREDIT_FAILURE_MESSAGE =
+  "Document processing is temporarily unavailable right now. Please try again later.";
+const PUBLIC_PROCESSING_FAILURE_MESSAGE =
+  "We could not finish processing this document right now. Please try again in a little while.";
 
 function shouldRedirectToUpload(message = "") {
   return QUALITY_REDIRECT_MESSAGES.includes(message.trim());
+}
+
+function formatProcessingMessage(message = "") {
+  const trimmedMessage = String(message || "").trim();
+  if (!trimmedMessage) return PUBLIC_PROCESSING_FAILURE_MESSAGE;
+  if (QUALITY_REDIRECT_MESSAGES.includes(trimmedMessage)) {
+    return trimmedMessage;
+  }
+
+  const normalizedMessage = trimmedMessage.toLowerCase();
+  if (
+    normalizedMessage.includes("credit") ||
+    normalizedMessage.includes("balance") ||
+    normalizedMessage.includes("billing") ||
+    normalizedMessage.includes("payment required") ||
+    normalizedMessage.includes("quota") ||
+    normalizedMessage.includes("insufficient funds")
+  ) {
+    return PUBLIC_CREDIT_FAILURE_MESSAGE;
+  }
+
+  return PUBLIC_PROCESSING_FAILURE_MESSAGE;
 }
 
 function ProcessingPage() {
@@ -107,7 +133,7 @@ function ProcessingPage() {
 
         if (job.status === "failed") {
           stopPolling();
-          const message = job?.error?.message || "Document processing failed. Please try again.";
+          const message = formatProcessingMessage(job?.error?.message);
           setProcessingError(message);
           scheduleUploadRedirect(message);
           markCurrentUploadStatus({
@@ -118,7 +144,7 @@ function ProcessingPage() {
         }
       } catch (error) {
         stopPolling();
-        const message = error?.message || "Unable to fetch processing status.";
+        const message = formatProcessingMessage(error?.message);
         setProcessingError(message);
         scheduleUploadRedirect(message);
         markCurrentUploadStatus({
@@ -167,7 +193,14 @@ function ProcessingPage() {
       </Box>
 
       {processingError && (
-        <Alert severity="error" variant="outlined">
+        <Alert
+          severity="info"
+          variant="outlined"
+          sx={{
+            borderColor: "rgba(29,78,216,0.18)",
+            bgcolor: "rgba(29,78,216,0.04)",
+          }}
+        >
           {processingError}
         </Alert>
       )}

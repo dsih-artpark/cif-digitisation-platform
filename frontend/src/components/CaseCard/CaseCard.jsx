@@ -70,7 +70,9 @@ function buildReportLines({ caseData }) {
     `Name (English): ${caseData.name_english}`,
     `Age: ${caseData.age}`,
     `Sex: ${caseData.sex}`,
-    `Location/Village: ${caseData.location}`,
+    `Location: ${caseData.location}`,
+    `District: ${caseData.district}`,
+    `Village: ${caseData.village}`,
     `Date: ${caseData.date}`,
     `Test Type: ${caseData.test_type}`,
     `Result: ${formatResultDisplay(caseData.result)}`,
@@ -233,7 +235,9 @@ function CaseCard({ caseData, recordStatus, uploadedFile, onEditRecord }) {
             <SummaryRow label="Name (English)" value={caseData.name_english} />
             <SummaryRow label="Age" value={caseData.age} />
             <SummaryRow label="Sex" value={caseData.sex} />
-            <SummaryRow label="Location/Village" value={caseData.location} />
+            <SummaryRow label="Location" value={caseData.location} />
+            <SummaryRow label="District" value={caseData.district} />
+            <SummaryRow label="Village" value={caseData.village} />
             <SummaryRow label="Date" value={caseData.date} />
             <SummaryRow label="Test Type" value={caseData.test_type} />
             <SummaryRow label="Result" value={formatResultDisplay(caseData.result)} />

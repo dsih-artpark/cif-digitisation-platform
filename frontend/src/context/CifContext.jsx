@@ -9,6 +9,8 @@ const EMPTY_CASE_DATA = {
   age: "N/A",
   sex: "N/A",
   location: "N/A",
+  district: "N/A",
+  village: "N/A",
   date: "N/A",
   test_type: "N/A",
   result: "N/A",
@@ -32,6 +34,8 @@ const EMPTY_FIELD_STATUS = {
   age: "Review Required",
   sex: "Review Required",
   location: "Review Required",
+  district: "Review Required",
+  village: "Review Required",
   date: "Review Required",
   test_type: "Review Required",
   result: "Review Required",
@@ -61,6 +65,44 @@ export function CifProvider({ children }) {
   const [processingError, setProcessingError] = useState("");
   const [currentUploadId, setCurrentUploadId] = useState("");
   const [extractionMetadata, setExtractionMetadata] = useState(null);
+
+  function splitLocationValue(location, district = "", village = "") {
+    const normalize = (value) => {
+      const text = String(value || "").trim();
+      const normalized = text.toLowerCase();
+      if (!text || ["n/a", "na", "unknown", "none", "null"].includes(normalized)) {
+        return "N/A";
+      }
+      return text;
+    };
+    const splitPattern = /\s*[-|\/,]\s*/;
+
+    let resolvedLocation = normalize(location);
+    let resolvedDistrict = normalize(district);
+    let resolvedVillage = normalize(village);
+
+    if (resolvedLocation !== "N/A") {
+      const parts = resolvedLocation.split(splitPattern).map((part) => part.trim()).filter(Boolean);
+      if (parts.length >= 3) {
+        resolvedLocation = parts[0];
+        if (resolvedDistrict === "N/A") resolvedDistrict = parts[1];
+        if (resolvedVillage === "N/A") resolvedVillage = parts.slice(2).join(" - ");
+      } else if (parts.length === 2) {
+        resolvedLocation = parts[0];
+        if (resolvedDistrict === "N/A") resolvedDistrict = parts[1];
+      }
+    } else if (resolvedDistrict !== "N/A") {
+      resolvedLocation = resolvedDistrict;
+    } else if (resolvedVillage !== "N/A") {
+      resolvedLocation = resolvedVillage;
+    }
+
+    return {
+      location: resolvedLocation,
+      district: resolvedDistrict,
+      village: resolvedVillage,
+    };
+  }
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -120,7 +162,14 @@ export function CifProvider({ children }) {
         "N/A",
       age: result?.caseData?.age ?? "N/A",
       sex: result?.caseData?.sex ?? "N/A",
-      location: result?.caseData?.location ?? result?.caseData?.locationVillage ?? "N/A",
+      ...splitLocationValue(
+        result?.caseData?.location ??
+          result?.caseData?.locationVillage ??
+          result?.caseData?.village ??
+          "N/A",
+        result?.caseData?.district ?? result?.caseData?.districtName ?? "N/A",
+        result?.caseData?.village ?? result?.caseData?.villageName ?? "N/A"
+      ),
       date: result?.caseData?.date ?? result?.caseData?.testDate ?? "N/A",
       test_type: result?.caseData?.test_type ?? result?.caseData?.testType ?? "N/A",
       result: result?.caseData?.result ?? "N/A",
@@ -144,6 +193,8 @@ export function CifProvider({ children }) {
       age: result?.fieldStatus?.age || "Review Required",
       sex: result?.fieldStatus?.sex || "Review Required",
       location: result?.fieldStatus?.location || "Review Required",
+      district: result?.fieldStatus?.district || "Review Required",
+      village: result?.fieldStatus?.village || "Review Required",
       date: result?.fieldStatus?.date || "Review Required",
       test_type: result?.fieldStatus?.test_type || "Review Required",
       result: result?.fieldStatus?.result || "Review Required",

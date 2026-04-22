@@ -3,11 +3,12 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import desc, select
+from sqlalchemy import desc, inspect, select, text
 
 from ..core.logging import logger
-from ..db.session import SessionLocal, create_tables
+from ..db.session import SessionLocal, create_tables, engine
 from ..models.ocr_record import OCRRecord
+from ..utils.location_utils import split_location_triplet
 
 NA_MARKERS = {"", "n/a", "na", "unknown", "none", "null"}
 
@@ -39,6 +40,46 @@ def to_float(value: Any) -> float | None:
 
 def initialize_persistence() -> None:
     create_tables()
+    ensure_ocr_record_columns()
+
+
+def ensure_ocr_record_columns() -> None:
+    inspector = inspect(engine)
+    if "ocr_records" not in inspector.get_table_names():
+        return
+
+    existing_columns = {column["name"] for column in inspector.get_columns("ocr_records")}
+    missing_columns: list[tuple[str, str]] = []
+    if "district" not in existing_columns:
+        missing_columns.append(("district", "TEXT"))
+    if "village" not in existing_columns:
+        missing_columns.append(("village", "TEXT"))
+
+    if missing_columns:
+        with engine.begin() as connection:
+            for column_name, column_type in missing_columns:
+                connection.execute(
+                    text(f"ALTER TABLE ocr_records ADD COLUMN {column_name} {column_type}")
+                )
+        logger.info("Migrated OCR record schema with new location columns")
+
+    with SessionLocal() as session:
+        records = session.execute(select(OCRRecord)).scalars().all()
+        updated = False
+        for record in records:
+            parsed = split_location_triplet(record.location, record.district, record.village)
+            if (
+                parsed["location"] != (record.location or "N/A")
+                or parsed["district"] != (record.district or "N/A")
+                or parsed["village"] != (record.village or "N/A")
+            ):
+                record.location = parsed["location"]
+                record.district = parsed["district"]
+                record.village = parsed["village"]
+                updated = True
+        if updated:
+            session.commit()
+            logger.info("Backfilled OCR record location, district, and village values")
 
 
 def serialize_ocr_record(record: OCRRecord) -> dict[str, Any]:
@@ -56,6 +97,8 @@ def serialize_ocr_record(record: OCRRecord) -> dict[str, Any]:
         "age": clean_value(record.age),
         "sex": clean_value(record.sex),
         "location": clean_value(record.location),
+        "district": clean_value(record.district),
+        "village": clean_value(record.village),
         "date": clean_value(record.date),
         "test_type": clean_value(record.test_type),
         "result": clean_value(record.result),
@@ -127,6 +170,8 @@ def upsert_ocr_record(job: dict[str, Any]) -> None:
         record.age = clean_value(case_data.get("age"))
         record.sex = clean_value(case_data.get("sex"))
         record.location = clean_value(case_data.get("location"))
+        record.district = clean_value(case_data.get("district"))
+        record.village = clean_value(case_data.get("village"))
         record.date = clean_value(case_data.get("date"))
         record.test_type = clean_value(case_data.get("test_type"))
         record.result = clean_value(case_data.get("result"))

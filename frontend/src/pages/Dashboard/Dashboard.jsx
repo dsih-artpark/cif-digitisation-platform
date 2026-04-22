@@ -24,7 +24,7 @@ import IndiaMap from "../../components/IndiaMap/IndiaMap";
 import { DEMO_ROLES } from "../../config/roleAccess";
 import { useCif } from "../../context/CifContext";
 import {
-  casesByState,
+  gadchiroliTalukaCases,
   nationalSegments,
   regionalTrend,
   statusBreakdown,
@@ -137,12 +137,12 @@ function Dashboard({ activeRole }) {
 
       <Box>
         <Typography variant="h6" mb={1}>
-          Regional Trend Analysis
+          Regional Trend Analysis - Gadchiroli Talukas
         </Typography>
       </Box>
       <Grid container spacing={2}>
         <Grid item xs={12} md={6}>
-          <RegionalBarChart data={casesByState} highlightedState={selectedStateName} />
+          <RegionalBarChart data={gadchiroliTalukaCases} title="Cases by Taluka" dataKey="taluka" />
         </Grid>
         <Grid item xs={12} md={6}>
           <RegionalLineChart data={regionalTrend} />

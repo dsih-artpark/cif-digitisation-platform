@@ -5,6 +5,7 @@ from typing import Any
 
 from ..core.config import UNKNOWN_MARKERS
 from ..schemas.case_data import NormalizedCaseData
+from ..utils.location_utils import split_location_triplet
 
 AGE_WITH_UNIT_PATTERN = re.compile(
     r"\b(?P<number>\d{1,3}(?:\.\d+)?)\s*(?P<unit>years?|year|yrs?|yr|months?|month|mos?|mths?|mth|mo)\b",
@@ -230,6 +231,17 @@ def normalize_pathogen(value: Any) -> str:
     return "N/A"
 
 
+def normalize_location_triplet(raw_data: dict[str, Any]) -> dict[str, str]:
+    triplet = split_location_triplet(
+        first_available_value(raw_data, "location", "locationVillage", "address"),
+        first_available_value(
+            raw_data, "district", "districtName", "locationDistrict", "taluka", "block"
+        ),
+        first_available_value(raw_data, "village", "villageName"),
+    )
+    return triplet
+
+
 def normalize_integer_text(value: Any) -> str:
     text = sanitize_value(value)
     if text == "N/A":
@@ -244,6 +256,7 @@ def normalize_integer_text(value: Any) -> str:
 def normalize_extraction(raw_data: dict[str, Any]) -> dict[str, Any]:
     fallback_age, fallback_sex = extract_age_and_sex_fallback(raw_data)
     fallback_contacts = extract_contacts_fallback(raw_data)
+    location_triplet = normalize_location_triplet(raw_data)
     raw_case_data = {
         "name_hindi": first_available_value(
             raw_data, "name_hindi", "nameHindi", "patientNameHindi"
@@ -267,9 +280,9 @@ def normalize_extraction(raw_data: dict[str, Any]) -> dict[str, Any]:
             if first_available_value(raw_data, "sex", "gender", "patientSex") is not None
             else fallback_sex
         ),
-        "location": first_available_value(
-            raw_data, "location", "locationVillage", "village", "address"
-        ),
+        "location": location_triplet["location"],
+        "district": location_triplet["district"],
+        "village": location_triplet["village"],
         "date": first_available_value(raw_data, "date", "testDate", "test_date", "visitDate"),
         "test_type": first_available_value(raw_data, "test_type", "testType", "diagnosticTest"),
         "result": first_available_value(
