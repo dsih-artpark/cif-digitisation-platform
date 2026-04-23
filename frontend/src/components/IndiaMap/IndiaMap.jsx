@@ -1,249 +1,371 @@
-import OpenInFullRoundedIcon from "@mui/icons-material/OpenInFullRounded";
-import CloseFullscreenRoundedIcon from "@mui/icons-material/CloseFullscreenRounded";
-import {
-  Box,
-  Card,
-  CardContent,
-  CircularProgress,
-  FormControl,
-  IconButton,
-  InputLabel,
-  MenuItem,
-  Select,
-  Stack,
-  Typography,
-  useMediaQuery,
-  useTheme,
-} from "@mui/material";
-import { useEffect, useRef, useState } from "react";
-import { gadchiroliTalukaNames } from "../../data/gadchiroliVillageDirectory";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Box, Card, CardContent, FormControl, InputLabel, MenuItem, Select, Typography } from "@mui/material";
+import L from "leaflet";
+import "leaflet/dist/leaflet.css";
 
-const LEAFLET_CSS_ID = "leaflet-cdn-css";
-const LEAFLET_SCRIPT_ID = "leaflet-cdn-js";
-const LEAFLET_CSS_URL = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.css";
-const LEAFLET_SCRIPT_URL = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.js";
-const MAHARASHTRA_CENTER = [19.7515, 75.7139];
-const GADCHIROLI_CENTER = [20.1849, 80.0066];
+const TALUKS = [
+  "Achalpur",
+  "Aheri",
+  "Akkalkot",
+  "Alibag",
+  "Amalner",
+  "Ambegaon",
+  "Amravati",
+  "Arjuni Morgaon",
+  "Bhiwandi",
+  "Chandrapur",
+  "Gadchiroli",
+  "Karjat",
+  "Latur",
+  "Nagpur Rural",
+  "Pune City",
+  "Solapur North",
+];
 
-function ensureLeafletAssets() {
-  if (!document.getElementById(LEAFLET_CSS_ID)) {
-    const cssLink = document.createElement("link");
-    cssLink.id = LEAFLET_CSS_ID;
-    cssLink.rel = "stylesheet";
-    cssLink.href = LEAFLET_CSS_URL;
-    document.head.appendChild(cssLink);
-  }
+const TALUK_NAME_ALIASES = {
+  "Nagpur Rural": "Nagpur (Rural)",
+};
 
-  return new Promise((resolve, reject) => {
-    if (window.L) {
-      resolve(window.L);
-      return;
-    }
+const MAHARASHTRA_BOUNDARY_URL =
+  "https://raw.githubusercontent.com/Subhash9325/GeoJson-Data-of-Indian-States/master/Indian_States";
 
-    const existingScript = document.getElementById(LEAFLET_SCRIPT_ID);
-    const handleLoaded = () => {
-      if (window.L) {
-        resolve(window.L);
-        return;
-      }
-      reject(new Error("Leaflet did not load correctly."));
-    };
-    const handleError = () => reject(new Error("Failed to load Leaflet script."));
+function isMaharashtraFeature(feature) {
+  const props = feature?.properties || {};
+  const values = Object.values(props);
 
-    if (existingScript) {
-      existingScript.addEventListener("load", handleLoaded, { once: true });
-      existingScript.addEventListener("error", handleError, { once: true });
-      return;
-    }
-
-    const script = document.createElement("script");
-    script.id = LEAFLET_SCRIPT_ID;
-    script.src = LEAFLET_SCRIPT_URL;
-    script.async = true;
-    script.onload = handleLoaded;
-    script.onerror = handleError;
-    document.body.appendChild(script);
-  });
+  return values.some((value) => typeof value === "string" && value.toLowerCase() === "maharashtra");
 }
 
-function IndiaMap() {
-  const [isMaximized, setIsMaximized] = useState(false);
-  const [isMapReady, setIsMapReady] = useState(false);
-  const [selectedTehsil, setSelectedTehsil] = useState("");
-  const [mapError, setMapError] = useState("");
-  const theme = useTheme();
-  const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
-  const mapContainerRef = useRef(null);
-  const mapInstanceRef = useRef(null);
-  const markerRef = useRef(null);
+function resolveGeoJsonName(talukName) {
+  return TALUK_NAME_ALIASES[talukName] || talukName;
+}
 
-  const mapHeight = isMobile ? (isMaximized ? 420 : 300) : isMaximized ? 540 : 360;
+function buildMarkerStyle(selectedTaluk, displayName) {
+  const isSelected = selectedTaluk === displayName;
+
+  return {
+    radius: isSelected ? 10 : 7,
+    color: isSelected ? "red" : "#6b7280",
+    weight: isSelected ? 3 : 1,
+    fillColor: isSelected ? "#ef4444" : "#94a3b8",
+    fillOpacity: isSelected ? 0.95 : 0.55,
+    opacity: 1,
+  };
+}
+
+function getPopupHtml(feature) {
+  const name = feature?.properties?.NAME11 ?? "Unknown";
+  const district = feature?.properties?.dtname ?? "Unknown";
+
+  return `
+    <div style="min-width: 160px">
+      <div><strong>Taluk Name:</strong> ${name}</div>
+      <div><strong>District:</strong> ${district}</div>
+    </div>
+  `;
+}
+
+export default function IndiaMap() {
+  const mapElRef = useRef(null);
+  const mapRef = useRef(null);
+  const layerRef = useRef(null);
+  const boundaryRef = useRef(null);
+  const layerByNameRef = useRef(new Map());
+  const featureByNameRef = useRef(new Map());
+  const [selectedTaluk, setSelectedTaluk] = useState("");
+  const [loadState, setLoadState] = useState("loading");
+
+  const talukOptions = useMemo(() => TALUKS, []);
 
   useEffect(() => {
-    let isCancelled = false;
+    if (!mapElRef.current || mapRef.current) return;
 
-    const initializeMap = async () => {
-      if (!mapContainerRef.current || mapInstanceRef.current) return;
+    const map = L.map(mapElRef.current, {
+      zoomControl: true,
+      attributionControl: true,
+      zoomAnimation: true,
+      fadeAnimation: true,
+      scrollWheelZoom: true,
+      zoomSnap: 0.25,
+      zoomDelta: 0.5,
+    }).setView([19.5, 75.5], 6);
 
-      try {
-        const leaflet = await ensureLeafletAssets();
-        if (isCancelled || !mapContainerRef.current) return;
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      maxZoom: 19,
+      attribution: "&copy; OpenStreetMap contributors",
+    }).addTo(map);
 
-        const map = leaflet.map(mapContainerRef.current, {
-          center: MAHARASHTRA_CENTER,
-          zoom: isMobile ? 5.5 : 6,
-          zoomControl: true,
-          zoomSnap: 0.25,
-          preferCanvas: true,
-        });
-
-        leaflet
-          .tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-            attribution:
-              '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">OpenStreetMap</a> contributors',
-            updateWhenIdle: true,
-            keepBuffer: 4,
-          })
-          .addTo(map);
-
-        markerRef.current = leaflet
-          .marker(GADCHIROLI_CENTER)
-          .addTo(map)
-          .bindTooltip("Gadchiroli", {
-            permanent: true,
-            direction: "top",
-            offset: [0, -10],
-            opacity: 0.95,
-          });
-
-        mapInstanceRef.current = map;
-        setIsMapReady(true);
-        setMapError("");
-      } catch (error) {
-        if (!isCancelled) {
-          setMapError(error?.message || "Unable to load the map.");
-        }
-      }
-    };
-
-    initializeMap();
+    mapRef.current = map;
 
     return () => {
-      isCancelled = true;
-      if (mapInstanceRef.current) {
-        mapInstanceRef.current.remove();
-        mapInstanceRef.current = null;
-      }
-      markerRef.current = null;
+      map.remove();
+      mapRef.current = null;
+      layerRef.current = null;
+      boundaryRef.current = null;
+      layerByNameRef.current = new Map();
+      featureByNameRef.current = new Map();
     };
-  }, [isMobile]);
+  }, []);
 
   useEffect(() => {
-    if (!mapInstanceRef.current) return;
-    const timeout = setTimeout(() => {
-      mapInstanceRef.current?.invalidateSize();
-    }, 220);
+    let cancelled = false;
 
-    return () => clearTimeout(timeout);
-  }, [isMaximized, isMobile, mapHeight, selectedTehsil]);
+    async function loadMaharashtraBoundary() {
+      if (!mapRef.current) return;
+
+      try {
+        const response = await fetch(MAHARASHTRA_BOUNDARY_URL);
+        if (!response.ok) return;
+
+        const boundaryGeoJson = await response.json();
+        if (cancelled || !mapRef.current) return;
+
+        if (boundaryRef.current) {
+          boundaryRef.current.remove();
+          boundaryRef.current = null;
+        }
+
+        const boundaryFeature =
+          boundaryGeoJson?.type === "FeatureCollection"
+            ? (boundaryGeoJson.features || []).find(isMaharashtraFeature)
+            : isMaharashtraFeature(boundaryGeoJson)
+              ? boundaryGeoJson
+              : null;
+
+        if (!boundaryFeature) return;
+
+        const boundaryCollection =
+          boundaryGeoJson?.type === "FeatureCollection"
+            ? {
+                type: "FeatureCollection",
+                features: [boundaryFeature],
+              }
+            : boundaryFeature;
+
+        const boundaryLayer = L.geoJSON(boundaryCollection, {
+          style: {
+            color: "#0f172a",
+            weight: 2,
+            opacity: 0.85,
+            fillColor: "#ffffff",
+            fillOpacity: 0.03,
+          },
+          interactive: false,
+        });
+
+        boundaryLayer.addTo(mapRef.current);
+        boundaryLayer.bringToBack();
+        boundaryRef.current = boundaryLayer;
+
+        const bounds = boundaryLayer.getBounds();
+        if (bounds.isValid()) {
+          mapRef.current.fitBounds(bounds, { padding: [20, 20], animate: true });
+        }
+      } catch (error) {
+        // Keep the map usable even if the boundary layer cannot load.
+      }
+    }
+
+    loadMaharashtraBoundary();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadTalukPoints() {
+      if (!mapRef.current) return;
+
+      setLoadState("loading");
+
+      try {
+        const response = await fetch("/maharashtra-subdistricts.geojson");
+        const geoJson = await response.json();
+        const allowedSourceNames = new Set(TALUKS.map(resolveGeoJsonName));
+
+        const filteredFeatures = (geoJson.features || []).filter((feature) => {
+          const sourceName = feature?.properties?.NAME11;
+          return allowedSourceNames.has(sourceName);
+        });
+
+        const featureIndex = new Map();
+        const sourceNameToDisplayName = new Map(
+          TALUKS.map((taluk) => [resolveGeoJsonName(taluk), taluk])
+        );
+
+        filteredFeatures.forEach((feature) => {
+          const sourceName = feature?.properties?.NAME11;
+          const displayName = sourceNameToDisplayName.get(sourceName);
+
+          if (displayName) {
+            featureIndex.set(displayName, feature);
+          }
+        });
+
+        if (cancelled) return;
+
+        featureByNameRef.current = featureIndex;
+        layerByNameRef.current = new Map();
+
+        if (layerRef.current) {
+          layerRef.current.remove();
+          layerRef.current = null;
+        }
+
+        if (boundaryRef.current) {
+          boundaryRef.current.remove();
+          boundaryRef.current = null;
+        }
+
+        if (!filteredFeatures.length) {
+          setLoadState("empty");
+          return;
+        }
+
+        const filteredCollection = {
+          type: "FeatureCollection",
+          features: filteredFeatures,
+        };
+
+        const layer = L.geoJSON(filteredCollection, {
+          pointToLayer: (feature, latlng) => {
+            const sourceName = feature?.properties?.NAME11;
+            const displayName = sourceNameToDisplayName.get(sourceName) || sourceName;
+            return L.circleMarker(latlng, buildMarkerStyle(selectedTaluk, displayName));
+          },
+          onEachFeature: (feature, featureLayer) => {
+            const sourceName = feature?.properties?.NAME11;
+            const displayName = sourceNameToDisplayName.get(sourceName) || sourceName;
+
+            layerByNameRef.current.set(displayName, featureLayer);
+
+            featureLayer.bindPopup(getPopupHtml(feature), {
+              className: "maharashtra-taluk-popup",
+            });
+
+            featureLayer.on("click", () => {
+              setSelectedTaluk(displayName);
+              featureLayer.openPopup();
+
+              if (mapRef.current && featureLayer.getLatLng) {
+                mapRef.current.flyTo(featureLayer.getLatLng(), 8, {
+                  animate: true,
+                  duration: 0.75,
+                });
+              }
+            });
+          },
+        });
+
+        layer.addTo(mapRef.current);
+        layerRef.current = layer;
+
+        const bounds = boundaryRef.current?.getBounds?.() || layer.getBounds();
+        if (bounds.isValid()) {
+          mapRef.current.fitBounds(bounds, { padding: [24, 24], animate: true });
+        }
+
+        setLoadState("ready");
+      } catch (error) {
+        if (!cancelled) {
+          setLoadState("error");
+        }
+      }
+    }
+
+    loadTalukPoints();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!layerRef.current) return;
+
+    layerRef.current.eachLayer((featureLayer) => {
+      const feature = featureLayer.feature;
+      const sourceName = feature?.properties?.NAME11;
+      const displayName = TALUKS.find((taluk) => resolveGeoJsonName(taluk) === sourceName) || sourceName;
+
+      if (displayName && featureLayer.setStyle) {
+        featureLayer.setStyle(buildMarkerStyle(selectedTaluk, displayName));
+      }
+    });
+  }, [selectedTaluk]);
+
+  function handleTalukChange(event) {
+    const value = event.target.value;
+    setSelectedTaluk(value);
+
+    const selectedFeature = featureByNameRef.current.get(value);
+    const selectedLayer = layerByNameRef.current.get(value);
+
+    if (!selectedFeature || !selectedLayer || !mapRef.current) return;
+
+    const latlng = selectedLayer.getLatLng?.();
+    if (latlng) {
+      mapRef.current.flyTo(latlng, 8, {
+        animate: true,
+        duration: 0.75,
+      });
+    }
+
+    if (selectedLayer.openPopup) {
+      selectedLayer.openPopup();
+    }
+  }
 
   return (
-    <Card>
-      <CardContent>
-        <Stack direction="row" justifyContent="space-between" alignItems="flex-start" mb={1} spacing={1}>
-          <Typography variant="subtitle1" fontWeight={700}>
-            Regional Trend Analysis - Gadchiroli Map
-          </Typography>
-          <IconButton onClick={() => setIsMaximized((prev) => !prev)} size="small" aria-label="maximize map">
-            {isMaximized ? <CloseFullscreenRoundedIcon /> : <OpenInFullRoundedIcon />}
-          </IconButton>
-        </Stack>
+    <Card className="maharashtra-taluk-card page-fade" sx={{ overflow: "hidden" }}>
+      <CardContent sx={{ p: { xs: 2, md: 2.5 } }}>
+        <Typography variant="h6" fontWeight={700}>
+          Maharashtra taluks
+        </Typography>
+        <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+          Pick a taluk to highlight its HQ location on the map.
+        </Typography>
 
-        <Stack spacing={1.5} mb={2}>
-          <FormControl size="small" sx={{ minWidth: { xs: "100%", sm: 280 } }}>
-            <InputLabel id="tehsil-select-label">Select Tehsil</InputLabel>
-            <Select
-              labelId="tehsil-select-label"
-              label="Select Tehsil"
-              value={selectedTehsil}
-              onChange={(event) => setSelectedTehsil(event.target.value)}
-            >
-              <MenuItem value="">All Tehsils</MenuItem>
-              {gadchiroliTalukaNames.map((tehsil) => (
-                <MenuItem key={tehsil} value={tehsil}>
-                  {tehsil}
-                </MenuItem>
-              ))}
-            </Select>
-          </FormControl>
-        </Stack>
-
-        <Box
-          sx={{
-            height: mapHeight,
-            border: "1px solid #d7dee6",
-            borderRadius: 1,
-            overflow: "hidden",
-            bgcolor: "#f8fbff",
-            transition: "height 0.25s ease",
-            position: "relative",
-          }}
-        >
-          <Box
-            ref={mapContainerRef}
-            sx={{
-              width: "100%",
-              height: "100%",
-              background:
-                "radial-gradient(circle at 50% 42%, rgba(255,255,255,0.96) 0%, rgba(247,250,254,1) 55%, rgba(240,245,251,1) 100%)",
-            }}
-          />
-          {!isMapReady && (
-            <Stack
-              direction="row"
-              spacing={1}
-              alignItems="center"
-              sx={{
-                position: "absolute",
-                top: 12,
-                left: 12,
-                bgcolor: "rgba(255,255,255,0.92)",
-                px: 1.25,
-                py: 0.75,
-                borderRadius: 1,
-                boxShadow: "0 1px 8px rgba(15, 45, 82, 0.08)",
-              }}
-            >
-              <CircularProgress size={16} />
-            </Stack>
-          )}
-          <Box
-            sx={{
-              position: "absolute",
-              left: 12,
-              bottom: 12,
-              bgcolor: "rgba(15, 45, 82, 0.92)",
-              color: "#fff",
-              px: 1.5,
-              py: 0.75,
-              borderRadius: 999,
-              fontSize: 13,
-              fontWeight: 700,
-              boxShadow: "0 8px 20px rgba(15, 45, 82, 0.18)",
-            }}
+        <FormControl fullWidth size="small" sx={{ mb: 2 }}>
+          <InputLabel id="taluk-select-label">Select taluk</InputLabel>
+          <Select
+            labelId="taluk-select-label"
+            label="Select taluk"
+            value={selectedTaluk}
+            onChange={handleTalukChange}
           >
-            {selectedTehsil || "All Tehsils"}
-          </Box>
-        </Box>
+            <MenuItem value="">
+              <em>None</em>
+            </MenuItem>
+            {talukOptions.map((taluk) => (
+              <MenuItem key={taluk} value={taluk}>
+                {taluk}
+              </MenuItem>
+            ))}
+          </Select>
+        </FormControl>
 
-        {mapError && (
-          <Box sx={{ mt: 1.5, color: "text.secondary", fontSize: 13 }}>
-            {mapError}
-          </Box>
-        )}
+        <Box className="maharashtra-taluk-map">
+          <Box ref={mapElRef} className="maharashtra-taluk-map__canvas" />
+
+          {loadState !== "ready" && (
+            <Box className="maharashtra-taluk-map__empty">
+              <Typography variant="subtitle2" fontWeight={700} gutterBottom>
+                {loadState === "loading"
+                  ? "Loading taluk coordinates..."
+                  : "No matching taluk coordinates found."}
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                This map uses the local GeoJSON points from Maharashtra Sub District Hq and zooms to the
+                matching taluks only.
+              </Typography>
+            </Box>
+          )}
+        </Box>
       </CardContent>
     </Card>
   );
 }
-
-export default IndiaMap;

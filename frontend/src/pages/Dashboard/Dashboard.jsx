@@ -1,7 +1,6 @@
 import { useMemo, useState } from "react";
 import {
   Box,
-  Button,
   Card,
   CardContent,
   FormControl,
@@ -12,7 +11,6 @@ import {
   Stack,
   Typography,
 } from "@mui/material";
-import { useNavigate } from "react-router-dom";
 import BackButton from "../../components/BackButton/BackButton";
 import RegionalBarChart from "../../components/Charts/RegionalBarChart";
 import RegionalLineChart from "../../components/Charts/RegionalLineChart";
@@ -21,24 +19,10 @@ import StateSegmentationCard from "../../components/Charts/StateSegmentationCard
 import StatusPieChart from "../../components/Charts/StatusPieChart";
 import WeeklyCaseTrendChart from "../../components/Charts/WeeklyCaseTrendChart";
 import IndiaMap from "../../components/IndiaMap/IndiaMap";
-import { DEMO_ROLES } from "../../config/roleAccess";
-import { useCif } from "../../context/CifContext";
-import {
-  gadchiroliTalukaCases,
-  nationalSegments,
-  regionalTrend,
-  statusBreakdown,
-  stateProfiles,
-  summaryStats,
-  weeklyCaseTrend,
-} from "../../data/mockData";
+import { gadchiroliTalukaCases, nationalSegments, regionalTrend, statusBreakdown, stateProfiles, summaryStats, weeklyCaseTrend } from "../../data/mockData";
 
-function Dashboard({ activeRole }) {
-  const navigate = useNavigate();
-  const { uploadedDocuments, clearUploadedDocuments } = useCif();
+function Dashboard() {
   const [selectedStateName, setSelectedStateName] = useState("Maharashtra");
-  const isAnalyticsRole = activeRole === DEMO_ROLES.ADMIN;
-  const recentUploads = useMemo(() => uploadedDocuments.slice(0, 5), [uploadedDocuments]);
 
   const regionOptions = useMemo(
     () => [
@@ -137,7 +121,7 @@ function Dashboard({ activeRole }) {
 
       <Box>
         <Typography variant="h6" mb={1}>
-          Regional Trend Analysis - Gadchiroli Talukas
+          Regional Trend Analysis - Maharashtra Map
         </Typography>
       </Box>
       <Grid container spacing={2}>
@@ -148,42 +132,6 @@ function Dashboard({ activeRole }) {
           <RegionalLineChart data={regionalTrend} />
         </Grid>
       </Grid>
-
-      {isAnalyticsRole && (
-        <Card>
-          <CardContent>
-            <Stack direction={{ xs: "column", sm: "row" }} spacing={1.5} justifyContent="space-between">
-              <Box>
-                <Typography variant="h6">Recent Uploads</Typography>
-              </Box>
-              <Stack direction="row" spacing={1} sx={{ alignSelf: { xs: "flex-start", sm: "center" } }}>
-                <Button variant="outlined" size="small" onClick={() => navigate("/results")}>
-                  View More
-                </Button>
-                <Button
-                  variant="text"
-                  color="error"
-                  size="small"
-                  disabled={uploadedDocuments.length === 0}
-                  onClick={clearUploadedDocuments}
-                >
-                  Clear All
-                </Button>
-              </Stack>
-            </Stack>
-
-            {recentUploads.length > 0 && (
-              <Stack mt={2} spacing={1}>
-                {recentUploads.map((item) => (
-                  <Typography key={item.id} fontWeight={600} sx={{ wordBreak: "break-word" }}>
-                    {item.fileName}
-                  </Typography>
-                ))}
-              </Stack>
-            )}
-          </CardContent>
-        </Card>
-      )}
 
       <IndiaMap />
       <BackButton fallbackPath="/" />

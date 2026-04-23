@@ -1,7 +1,6 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import { createContext, useCallback, useContext, useMemo, useState } from "react";
 
 const CifContext = createContext(null);
-const UPLOAD_HISTORY_STORAGE_KEY = "demoUploadHistory";
 
 const EMPTY_CASE_DATA = {
   name_hindi: "N/A",
@@ -56,14 +55,12 @@ const EMPTY_FIELD_STATUS = {
 export function CifProvider({ children }) {
   const [uploadedFile, setUploadedFile] = useState(null);
   const [previewUrl, setPreviewUrl] = useState("");
-  const [uploadedDocuments, setUploadedDocuments] = useState([]);
   const [caseData, setCaseData] = useState(EMPTY_CASE_DATA);
   const [extractedCaseData, setExtractedCaseData] = useState(EMPTY_CASE_DATA);
   const [fieldStatus, setFieldStatus] = useState(EMPTY_FIELD_STATUS);
   const [recordStatus, setRecordStatus] = useState("Review Required");
   const [processingJobId, setProcessingJobId] = useState("");
   const [processingError, setProcessingError] = useState("");
-  const [currentUploadId, setCurrentUploadId] = useState("");
   const [extractionMetadata, setExtractionMetadata] = useState(null);
 
   function splitLocationValue(location, district = "", village = "") {
@@ -104,38 +101,15 @@ export function CifProvider({ children }) {
     };
   }
 
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    window.sessionStorage.removeItem(UPLOAD_HISTORY_STORAGE_KEY);
-  }, []);
-
   const addUploadedDocument = useCallback((file, uploadedByRole) => {
-    if (!file) return;
-    const id = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-    const metadata = {
-      id,
-      fileName: file.name,
-      fileType: file.type || "unknown",
-      fileSize: Number(file.size) || 0,
-      uploadedAt: new Date().toISOString(),
-      uploadedByRole: uploadedByRole || "unknown",
-      extractionStatus: "Queued",
-      recordStatus: "Review Required",
-    };
-    setUploadedDocuments((previous) => [metadata, ...previous]);
-    setCurrentUploadId(id);
-    return id;
+    void file;
+    void uploadedByRole;
+    return `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
   }, []);
 
   const updateUploadedDocument = useCallback((uploadId, updates) => {
-    if (!uploadId || !updates) return;
-    setUploadedDocuments((previous) =>
-      previous.map((item) => (item.id === uploadId ? { ...item, ...updates } : item))
-    );
-  }, []);
-
-  const clearUploadedDocuments = useCallback(() => {
-    setUploadedDocuments([]);
+    void uploadId;
+    void updates;
   }, []);
 
   const resetExtractionState = useCallback(() => {
@@ -226,10 +200,9 @@ export function CifProvider({ children }) {
 
   const markCurrentUploadStatus = useCallback(
     (updates) => {
-      if (!currentUploadId || !updates) return;
-      updateUploadedDocument(currentUploadId, updates);
+      void updates;
     },
-    [currentUploadId, updateUploadedDocument]
+    []
   );
 
   const value = useMemo(
@@ -238,12 +211,8 @@ export function CifProvider({ children }) {
       setUploadedFile,
       previewUrl,
       setPreviewUrl,
-      uploadedDocuments,
       addUploadedDocument,
       updateUploadedDocument,
-      clearUploadedDocuments,
-      currentUploadId,
-      setCurrentUploadId,
       markCurrentUploadStatus,
       caseData,
       setCaseData,
@@ -265,11 +234,8 @@ export function CifProvider({ children }) {
     [
       uploadedFile,
       previewUrl,
-      uploadedDocuments,
       addUploadedDocument,
       updateUploadedDocument,
-      clearUploadedDocuments,
-      currentUploadId,
       markCurrentUploadStatus,
       caseData,
       fieldStatus,
