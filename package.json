@@ -9,7 +9,9 @@
   "devDependencies": {
     "@types/node": "^25.6.0"
   },
-  "scripts": {},
+  "scripts": {
+    "dev:all": "node scripts/dev-all.mjs"
+  },
   "keywords": [],
   "author": "",
   "license": "ISC"
