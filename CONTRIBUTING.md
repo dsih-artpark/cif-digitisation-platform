@@ -70,7 +70,8 @@ See `docs/consolidated_project_report.md` for the full architectural context. At
 ### Python (backend)
 - **Formatter**: Black, 100-char line length
 - **Linter**: Ruff (rules: E, F, I, UP, B; ignores E501)
-- Install hooks: `pre-commit install` — they run on every commit
+- Install pre-commit (once per machine): `uv tool install pre-commit` (or `pip install pre-commit`)
+- Install hooks in this repo: `pre-commit install` — they run on every commit
 - Prefer explicit type hints; the codebase uses `from __future__ import annotations`
 
 ### JavaScript (frontend)
