@@ -265,12 +265,10 @@ def normalize_result(value: Any) -> str:
 class NormalizedCaseData(BaseModel):
     model_config = ConfigDict(extra="ignore")
 
-    name_hindi: str = "N/A"
-    name_english: str = "N/A"
+    patient_name: str = "N/A"
     age: str = "N/A"
     sex: str = "N/A"
     location: str = "N/A"
-    district: str = "N/A"
     village: str = "N/A"
     date: str = "N/A"
     test_type: str = "N/A"
@@ -279,14 +277,6 @@ class NormalizedCaseData(BaseModel):
     treatment: str = "N/A"
     temperature: str = "N/A"
     hb_level: str = "N/A"
-    rbs: str = "N/A"
-    bp: str = "N/A"
-    contacts: str = "N/A"
-    fever_onset_date: str = "N/A"
-    hh_total: str = "N/A"
-    hh_surveyed: str = "N/A"
-    individuals_tested: str = "N/A"
-    individuals_positive: str = "N/A"
 
     @model_validator(mode="before")
     @classmethod
@@ -297,22 +287,20 @@ class NormalizedCaseData(BaseModel):
         normalized_values = dict(values)
         triplet = split_location_triplet(
             normalized_values.get("location"),
-            normalized_values.get("district"),
+            None,
             normalized_values.get("village"),
         )
         normalized_values["location"] = triplet["location"]
-        normalized_values["district"] = triplet["district"]
         normalized_values["village"] = triplet["village"]
+        if normalized_values["village"] == "N/A" and triplet["district"] != "N/A":
+            normalized_values["village"] = triplet["district"]
         return normalized_values
 
     @field_validator(
-        "name_hindi",
-        "name_english",
+        "patient_name",
         "location",
-        "district",
         "village",
         "test_type",
-        "bp",
         mode="before",
     )
     @classmethod
@@ -334,11 +322,6 @@ class NormalizedCaseData(BaseModel):
     def _normalize_test_date(cls, value: Any) -> str:
         return normalize_date(value)
 
-    @field_validator("fever_onset_date", mode="before")
-    @classmethod
-    def _normalize_fever_onset_date(cls, value: Any) -> str:
-        return normalize_date(value, separator="/")
-
     @field_validator("result", mode="before")
     @classmethod
     def _normalize_result(cls, value: Any) -> str:
@@ -359,19 +342,7 @@ class NormalizedCaseData(BaseModel):
     def _normalize_temperature(cls, value: Any) -> str:
         return normalize_number_text(value)
 
-    @field_validator("hb_level", "rbs", mode="before")
+    @field_validator("hb_level", mode="before")
     @classmethod
     def _normalize_numeric_field(cls, value: Any) -> str:
         return normalize_hb_level(value)
-
-    @field_validator("contacts", mode="before")
-    @classmethod
-    def _normalize_contacts(cls, value: Any) -> str:
-        return normalize_contacts(value)
-
-    @field_validator(
-        "hh_total", "hh_surveyed", "individuals_tested", "individuals_positive", mode="before"
-    )
-    @classmethod
-    def _normalize_count_fields(cls, value: Any) -> str:
-        return normalize_integer_text(value)

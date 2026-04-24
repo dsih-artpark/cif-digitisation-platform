@@ -22,34 +22,25 @@ import { getRecentResults } from "../../api/resultsClient";
 import BackButton from "../../components/BackButton/BackButton";
 import { DEMO_ROLES } from "../../config/roleAccess";
 import { useCif } from "../../context/CifContext";
+import { formatPathogenDisplay } from "../../utils/pathogenDisplay";
 import { formatResultDisplay } from "../../utils/resultDisplay";
 
 const RESULT_COLUMNS = [
   { key: "id", label: "ID" },
   { key: "file", label: "File" },
   { key: "page", label: "Page" },
-  { key: "name_hindi", label: "Name (Hindi)" },
-  { key: "name_english", label: "Name (English)" },
+  { key: "patient_name", label: "Patient Name" },
   { key: "age", label: "Age" },
   { key: "sex", label: "Sex" },
   { key: "location", label: "Location" },
-  { key: "district", label: "District" },
   { key: "village", label: "Village" },
-  { key: "date", label: "Date" },
+  { key: "date", label: "Test Date" },
   { key: "test_type", label: "Test Type" },
   { key: "result", label: "Result" },
   { key: "pathogen", label: "Pathogen" },
   { key: "treatment", label: "Treatment" },
   { key: "temperature", label: "Temperature" },
   { key: "hb_level", label: "HB Level" },
-  { key: "rbs", label: "RBS" },
-  { key: "bp", label: "BP" },
-  { key: "contacts", label: "Contacts" },
-  { key: "fever_onset_date", label: "Fever Onset Date" },
-  { key: "hh_total", label: "HH Total" },
-  { key: "hh_surveyed", label: "HH Surveyed" },
-  { key: "individuals_tested", label: "Individuals Tested" },
-  { key: "individuals_positive", label: "Individuals Positive" },
   { key: "special_notes", label: "Special Notes" },
   { key: "ocr_status", label: "OCR Status" },
   { key: "job_id", label: "Job ID" },
@@ -73,6 +64,7 @@ function formatCellValue(value, columnKey = "") {
   if (value === null || value === undefined) return "";
   if (typeof value === "number") return String(value);
   if (columnKey === "result") return formatResultDisplay(value);
+  if (columnKey === "pathogen") return formatPathogenDisplay(value);
   if (typeof value === "string") return value;
   return String(value);
 }
@@ -85,7 +77,7 @@ function Results({ activeRole = "" }) {
   const [adminRows, setAdminRows] = useState([]);
   const [isLoadingAdminRows, setIsLoadingAdminRows] = useState(false);
   const [adminError, setAdminError] = useState("");
-  const [districtFilter, setDistrictFilter] = useState("");
+  const [locationFilter, setLocationFilter] = useState("");
   const [villageFilter, setVillageFilter] = useState("");
   const { caseData, recordStatus, extractionMetadata, uploadedFile, processingError } = useCif();
   const isAdmin = activeRole === DEMO_ROLES.ADMIN;
@@ -129,12 +121,10 @@ function Results({ activeRole = "" }) {
       ...createEmptyRow(),
       file: uploadedFile?.name || "",
       page: 1,
-      name_hindi: caseData?.name_hindi || "",
-      name_english: caseData?.name_english || "",
+      patient_name: caseData?.patient_name || "",
       age: caseData?.age || "",
       sex: caseData?.sex || "",
       location: caseData?.location || "",
-      district: caseData?.district || "",
       village: caseData?.village || "",
       date: caseData?.date || "",
       test_type: caseData?.test_type || "",
@@ -143,12 +133,6 @@ function Results({ activeRole = "" }) {
       treatment: caseData?.treatment || "",
       temperature: caseData?.temperature || "",
       hb_level: caseData?.hb_level || "",
-      contacts: caseData?.contacts || "",
-      fever_onset_date: caseData?.fever_onset_date || "",
-      hh_total: caseData?.hh_total || "",
-      hh_surveyed: caseData?.hh_surveyed || "",
-      individuals_tested: caseData?.individuals_tested || "",
-      individuals_positive: caseData?.individuals_positive || "",
       special_notes: processingError || "",
       ocr_status: recordStatus === "Verified" ? "SUCCESS" : "REVIEW_REQUIRED",
       job_id: extractionMetadata?.jobId || "",
@@ -185,11 +169,11 @@ function Results({ activeRole = "" }) {
     return [createEmptyRow()];
   }, [adminRows, isAdmin, isFrontLineWorker, latestSessionRow]);
 
-  const districtOptions = useMemo(() => {
+  const locationOptions = useMemo(() => {
     if (!isAdmin) return [];
     const values = new Set();
     adminRows.forEach((row) => {
-      const value = normalizeFilterValue(row?.district || row?.location);
+      const value = normalizeFilterValue(row?.location);
       if (value) values.add(value);
     });
     return Array.from(values).sort((left, right) => left.localeCompare(right));
@@ -199,25 +183,25 @@ function Results({ activeRole = "" }) {
     if (!isAdmin) return [];
     const values = new Set();
     adminRows.forEach((row) => {
-      const districtValue = normalizeFilterValue(row?.district || row?.location);
-      if (districtFilter && districtValue !== districtFilter) return;
+      const locationValue = normalizeFilterValue(row?.location);
+      if (locationFilter && locationValue !== locationFilter) return;
       const value = normalizeFilterValue(row?.village);
       if (value) values.add(value);
     });
     return Array.from(values).sort((left, right) => left.localeCompare(right));
-  }, [adminRows, districtFilter, isAdmin]);
+  }, [adminRows, isAdmin, locationFilter]);
 
   const rows = useMemo(() => {
     if (!isAdmin) return baseRows;
 
     return baseRows.filter((row) => {
-      const districtValue = normalizeFilterValue(row?.district || row?.location);
+      const locationValue = normalizeFilterValue(row?.location);
       const villageValue = normalizeFilterValue(row?.village);
-      const matchesDistrict = !districtFilter || districtValue === districtFilter;
+      const matchesLocation = !locationFilter || locationValue === locationFilter;
       const matchesVillage = !villageFilter || villageValue === villageFilter;
-      return matchesDistrict && matchesVillage;
+      return matchesLocation && matchesVillage;
     });
-  }, [baseRows, districtFilter, isAdmin, villageFilter]);
+  }, [baseRows, isAdmin, locationFilter, villageFilter]);
 
   return (
     <Stack spacing={2.5}>
@@ -244,18 +228,18 @@ function Results({ activeRole = "" }) {
           <CardContent>
             <Stack direction={{ xs: "column", sm: "row" }} spacing={2}>
               <FormControl size="small" sx={{ minWidth: 220 }}>
-                <InputLabel id="district-filter-label">District</InputLabel>
+                <InputLabel id="location-filter-label">Location</InputLabel>
                 <Select
-                  labelId="district-filter-label"
-                  label="District"
-                  value={districtFilter}
+                  labelId="location-filter-label"
+                  label="Location"
+                  value={locationFilter}
                   onChange={(event) => {
-                    setDistrictFilter(event.target.value);
+                    setLocationFilter(event.target.value);
                     setVillageFilter("");
                   }}
                 >
-                  <MenuItem value="">All Districts</MenuItem>
-                  {districtOptions.map((option) => (
+                  <MenuItem value="">All Locations</MenuItem>
+                  {locationOptions.map((option) => (
                     <MenuItem key={option} value={option}>
                       {option}
                     </MenuItem>

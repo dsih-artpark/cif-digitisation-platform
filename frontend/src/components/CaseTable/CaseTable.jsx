@@ -15,15 +15,36 @@ import {
   useTheme,
 } from "@mui/material";
 
+const AGE_UNIT_OPTIONS = [
+  { value: "year", label: "Years" },
+  { value: "month", label: "Months" },
+];
+
+function normalizeSelectOption(option) {
+  if (option && typeof option === "object") {
+    return {
+      value: option.value ?? "",
+      label: option.label ?? String(option.value ?? ""),
+    };
+  }
+
+  return {
+    value: option,
+    label: String(option ?? ""),
+  };
+}
+
 function statusColor(status) {
   if (status === "Verified") return "success";
   if (status === "Review Required") return "warning";
   return "info";
 }
 
-function normalizeAgeEditorValue(value) {
+function parseAgeEditorValue(value) {
   const text = String(value ?? "").trim();
-  if (!text) return "";
+  if (!text || text === "N/A") {
+    return { number: "", unit: "year" };
+  }
 
   const withUnitMatch = text.match(
     /\b(?<number>\d{1,3}(?:\.\d+)?)\s*(?<unit>years?|year|yrs?|yr|months?|month|mos?|mths?|mth|mo)\b/i
@@ -33,26 +54,75 @@ function normalizeAgeEditorValue(value) {
   );
   const bareMatch = text.match(/^\s*(?<number>\d{1,3}(?:\.\d+)?)\s*$/);
   const match = withUnitMatch || agePrefixMatch || bareMatch;
-  if (!match) return text;
+  if (!match) return { number: "", unit: "year" };
 
   const numberText = match.groups?.number || match[1];
-  const numericValue = Number(numberText);
-  if (!Number.isFinite(numericValue) || numericValue < 0) return text;
+  const unit = (match.groups?.unit || match[2] || "").toLowerCase();
 
-  const formattedNumber = numberText.includes(".")
-    ? numberText.replace(/\.0+$/, "").replace(/\.$/, "")
+  return {
+    number: numberText,
+    unit: /month|mo|mth/.test(unit) ? "month" : "year",
+  };
+}
+
+function normalizeAgeEditorValue(numberValue, unitValue) {
+  const text = String(numberValue ?? "").trim();
+  if (!text) return "N/A";
+
+  const numericValue = Number(text);
+  if (!Number.isFinite(numericValue) || numericValue < 0) return "N/A";
+
+  const formattedNumber = text.includes(".")
+    ? text.replace(/\.0+$/, "").replace(/\.$/, "")
     : String(Math.trunc(numericValue));
-  const unit = (match.groups?.unit || "").toLowerCase();
-  const isMonthUnit = /month|mo|mth/.test(unit);
-  const unitLabel = isMonthUnit
-    ? numericValue === 1
-      ? "month"
-      : "months"
-    : numericValue === 1
-      ? "year"
-      : "years";
+  const resolvedUnit = unitValue === "month" ? "month" : "year";
+  const unitLabel =
+    resolvedUnit === "month"
+      ? numericValue === 1
+        ? "month"
+        : "months"
+      : numericValue === 1
+        ? "year"
+        : "years";
 
   return `${formattedNumber} ${unitLabel}`;
+}
+
+function renderAgeEditor(row, onValueChange) {
+  const { number, unit } = parseAgeEditorValue(row.value);
+
+  return (
+    <Stack direction={{ xs: "column", sm: "row" }} spacing={1}>
+      <TextField
+        fullWidth
+        size="small"
+        type="number"
+        value={number}
+        onChange={(event) => onValueChange(row.key, normalizeAgeEditorValue(event.target.value, unit))}
+        inputProps={{
+          min: 0,
+          step: 1,
+          inputMode: "numeric",
+        }}
+        sx={{ flex: 1, minWidth: 0 }}
+      />
+      <TextField
+        fullWidth
+        size="small"
+        select
+        SelectProps={{ displayEmpty: true }}
+        value={unit}
+        onChange={(event) => onValueChange(row.key, normalizeAgeEditorValue(number, event.target.value))}
+        sx={{ width: { xs: "100%", sm: 150 } }}
+      >
+        {AGE_UNIT_OPTIONS.map((option) => (
+          <MenuItem key={option.value} value={option.value}>
+            {option.label}
+          </MenuItem>
+        ))}
+      </TextField>
+    </Stack>
+  );
 }
 
 function toDateInputValue(value) {
@@ -87,6 +157,10 @@ function fromDateInputValue(value, separator = "-") {
 }
 
 function renderFieldEditor(row, onValueChange) {
+  if (row.editorType === "age") {
+    return renderAgeEditor(row, onValueChange);
+  }
+
   const displayValue =
     row.editorType === "select" || row.editorType === "date"
       ? row.value === "N/A"
@@ -104,14 +178,15 @@ function renderFieldEditor(row, onValueChange) {
   };
 
   if (row.editorType === "select") {
+    const options = (row.options || []).map(normalizeSelectOption);
     return (
       <TextField {...commonProps} select SelectProps={{ displayEmpty: true }}>
         <MenuItem value="" disabled>
           {row.placeholder || "Select value"}
         </MenuItem>
-        {(row.options || []).map((option) => (
-          <MenuItem key={option} value={option}>
-            {option}
+        {options.map((option) => (
+          <MenuItem key={option.value} value={option.value}>
+            {option.label}
           </MenuItem>
         ))}
       </TextField>
@@ -137,17 +212,6 @@ function renderFieldEditor(row, onValueChange) {
       {...commonProps}
       multiline={Boolean(row.multiline)}
       minRows={row.multiline ? 3 : undefined}
-      inputProps={row.editorType === "age" ? { inputMode: "text" } : undefined}
-      onBlur={
-        row.editorType === "age"
-          ? (event) => {
-              const normalizedValue = normalizeAgeEditorValue(event.target.value);
-              if (normalizedValue !== row.value) {
-                onValueChange(row.key, normalizedValue);
-              }
-            }
-          : undefined
-      }
     />
   );
 }

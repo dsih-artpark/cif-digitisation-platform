@@ -70,49 +70,33 @@ function isDateNotFuture(value) {
 }
 
 const FIELD_SEVERITY = {
-  name_hindi: "Critical",
-  name_english: "Critical",
+  patient_name: "Critical",
   age: "Critical",
   sex: "Critical",
   result: "Critical",
   pathogen: "Critical",
   location: "High",
+  village: "High",
   date: "High",
   test_type: "High",
-  fever_onset_date: "High",
   treatment: "Medium",
   temperature: "Medium",
   hb_level: "Medium",
-  rbs: "Medium",
-  bp: "Medium",
-  contacts: "Medium",
-  hh_total: "Medium",
-  hh_surveyed: "Medium",
-  individuals_tested: "Medium",
-  individuals_positive: "Medium",
 };
 
 const FIELD_LABELS = {
-  name_hindi: "Name (Hindi)",
-  name_english: "Name (English)",
+  patient_name: "Patient Name",
   age: "Age",
   sex: "Sex",
   location: "Location",
-  date: "Date",
+  village: "Village",
+  date: "Test Date",
   test_type: "Test Type",
   result: "Result",
   pathogen: "Pathogen",
   treatment: "Treatment",
   temperature: "Temperature",
   hb_level: "HB Level",
-  rbs: "RBS",
-  bp: "BP",
-  contacts: "Contacts",
-  fever_onset_date: "Fever Onset Date",
-  hh_total: "HH Total",
-  hh_surveyed: "HH Surveyed",
-  individuals_tested: "Individuals Tested",
-  individuals_positive: "Individuals Positive",
 };
 
 function CaseReviewPage({ activeRole = "" }) {
@@ -134,16 +118,10 @@ function CaseReviewPage({ activeRole = "" }) {
   const rows = useMemo(
     () => [
       {
-        key: "name_hindi",
-        label: "Name (Hindi)",
-        value: caseData.name_hindi,
-        status: fieldStatus.name_hindi,
-      },
-      {
-        key: "name_english",
-        label: "Name (English)",
-        value: caseData.name_english,
-        status: fieldStatus.name_english,
+        key: "patient_name",
+        label: "Patient Name",
+        value: caseData.patient_name,
+        status: fieldStatus.patient_name,
       },
       {
         key: "age",
@@ -168,12 +146,6 @@ function CaseReviewPage({ activeRole = "" }) {
         status: fieldStatus.location,
       },
       {
-        key: "district",
-        label: "District",
-        value: caseData.district,
-        status: fieldStatus.district,
-      },
-      {
         key: "village",
         label: "Village",
         value: caseData.village,
@@ -181,7 +153,7 @@ function CaseReviewPage({ activeRole = "" }) {
       },
       {
         key: "date",
-        label: "Date",
+        label: "Test Date",
         value: caseData.date,
         status: fieldStatus.date,
         editorType: "date",
@@ -199,7 +171,10 @@ function CaseReviewPage({ activeRole = "" }) {
         value: caseData.result,
         status: fieldStatus.result,
         editorType: "select",
-        options: ["Positive", "Negative"],
+        options: [
+          { value: "Positive", label: "Positive" },
+          { value: "Negative", label: "Negative" },
+        ],
         placeholder: "Select result",
       },
       {
@@ -207,6 +182,12 @@ function CaseReviewPage({ activeRole = "" }) {
         label: "Pathogen",
         value: caseData.pathogen,
         status: fieldStatus.pathogen,
+        editorType: "select",
+        options: [
+          { value: "Pf", label: "P. falciparum" },
+          { value: "Pv", label: "P. vivax" },
+        ],
+        placeholder: "Select pathogen",
       },
       {
         key: "treatment",
@@ -227,68 +208,16 @@ function CaseReviewPage({ activeRole = "" }) {
         value: caseData.hb_level,
         status: fieldStatus.hb_level,
       },
-      {
-        key: "rbs",
-        label: "RBS",
-        value: caseData.rbs,
-        status: fieldStatus.rbs,
-      },
-      {
-        key: "bp",
-        label: "BP",
-        value: caseData.bp,
-        status: fieldStatus.bp,
-      },
-      {
-        key: "contacts",
-        label: "Contacts",
-        value: caseData.contacts,
-        status: fieldStatus.contacts,
-      },
-      {
-        key: "fever_onset_date",
-        label: "Fever Onset Date",
-        value: caseData.fever_onset_date,
-        status: fieldStatus.fever_onset_date,
-        editorType: "date",
-        dateFormat: "slash",
-      },
-      {
-        key: "hh_total",
-        label: "HH Total",
-        value: caseData.hh_total,
-        status: fieldStatus.hh_total,
-      },
-      {
-        key: "hh_surveyed",
-        label: "HH Surveyed",
-        value: caseData.hh_surveyed,
-        status: fieldStatus.hh_surveyed,
-      },
-      {
-        key: "individuals_tested",
-        label: "Individuals Tested",
-        value: caseData.individuals_tested,
-        status: fieldStatus.individuals_tested,
-      },
-      {
-        key: "individuals_positive",
-        label: "Individuals Positive",
-        value: caseData.individuals_positive,
-        status: fieldStatus.individuals_positive,
-      },
     ],
     [caseData, fieldStatus]
   );
 
   const validationRules = useMemo(() => {
     const requiredKeys = [
-      "name_hindi",
-      "name_english",
+      "patient_name",
       "age",
       "sex",
       "location",
-      "district",
       "village",
       "date",
       "test_type",
@@ -297,14 +226,6 @@ function CaseReviewPage({ activeRole = "" }) {
       "treatment",
       "temperature",
       "hb_level",
-      "rbs",
-      "bp",
-      "contacts",
-      "fever_onset_date",
-      "hh_total",
-      "hh_surveyed",
-      "individuals_tested",
-      "individuals_positive",
     ];
     const missingFields = requiredKeys.filter((key) => {
       if (key === "pathogen" && String(caseData.result || "").trim().toLowerCase() === "negative") {
@@ -338,12 +259,10 @@ function CaseReviewPage({ activeRole = "" }) {
       .map((item) => item.trim())
       .filter((value) => value && !isMissingValue(value));
     const hasDoseInfo = treatmentLines.some((item) => /\b\d+\s?(mg|ml|mcg|gm)\b/i.test(item));
-    const verifiedCount = Object.values(fieldStatus).filter((status) => status === "Verified").length;
     const validAge = isValidAgeValue(caseData.age);
     const validSex = ["m", "f"].includes(normalizedSex);
     const validResult = ["positive", "negative"].includes(normalizedResult);
     const validDate = isDateNotFuture(caseData.date);
-    const validFeverOnsetDate = isValidDateValue(caseData.fever_onset_date);
     const validPathogen =
       normalizedResult === "negative"
         ? true
@@ -370,7 +289,7 @@ function CaseReviewPage({ activeRole = "" }) {
         status: validAge ? "pass" : "error",
         message: validAge
           ? "Age format and range look valid."
-          : "Age should include a number with an optional years or months unit.",
+          : "Age should use the number field plus the years/months selector.",
       },
       {
         id: "date-validation",
@@ -400,15 +319,7 @@ function CaseReviewPage({ activeRole = "" }) {
         status: validPathogen ? "pass" : "warning",
         message: validPathogen
           ? "Pathogen field is captured in a supported format."
-          : "Review pathogen field manually. Use Pf, Pv, or Mixed where applicable.",
-      },
-      {
-        id: "fever-onset-validation",
-        title: "Fever Onset Validation",
-        status: validFeverOnsetDate ? "pass" : "warning",
-        message: validFeverOnsetDate
-          ? "Fever onset date is captured in DD/MM/YYYY format."
-          : "Review fever onset date manually. Use DD/MM/YYYY format.",
+          : "Review pathogen field manually. Use P. falciparum or P. vivax where applicable.",
       },
       {
         id: "treatment-check",
@@ -418,15 +329,6 @@ function CaseReviewPage({ activeRole = "" }) {
           treatmentLines.length >= 1 && hasDoseInfo
             ? "Treatment includes dosage markers."
             : "Review treatment manually. Dosage/frequency may be incomplete.",
-      },
-      {
-        id: "verification-readiness",
-        title: "Verification Readiness",
-        status: verifiedCount >= 8 ? "pass" : "warning",
-        message:
-          verifiedCount >= 8
-            ? `${verifiedCount} fields are already marked as verified.`
-            : `Only ${verifiedCount} fields are verified. Review before final approval.`,
       },
     ];
   }, [caseData, fieldStatus]);

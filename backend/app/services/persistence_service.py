@@ -92,12 +92,10 @@ def serialize_ocr_record(record: OCRRecord) -> dict[str, Any]:
         "id": record.id,
         "file": clean_value(record.file),
         "page": record.page,
-        "name_hindi": clean_value(record.name_hindi),
-        "name_english": clean_value(record.name_english),
+        "patient_name": clean_value(record.name_english or record.name_hindi),
         "age": clean_value(record.age),
         "sex": clean_value(record.sex),
         "location": clean_value(record.location),
-        "district": clean_value(record.district),
         "village": clean_value(record.village),
         "date": clean_value(record.date),
         "test_type": clean_value(record.test_type),
@@ -106,9 +104,6 @@ def serialize_ocr_record(record: OCRRecord) -> dict[str, Any]:
         "treatment": clean_value(record.treatment),
         "temperature": clean_value(record.temperature),
         "hb_level": clean_value(record.hb_level),
-        "rbs": clean_value(record.rbs),
-        "bp": clean_value(record.bp),
-        "contacts": clean_value(record.contacts),
         "special_notes": clean_value(record.special_notes),
         "ocr_status": clean_value(record.ocr_status),
         "job_id": clean_value(record.job_id),
@@ -165,12 +160,15 @@ def upsert_ocr_record(job: dict[str, Any]) -> None:
         ).scalar_one_or_none()
 
         record = existing or OCRRecord(file=file_name, page=page)
-        record.name_hindi = clean_value(case_data.get("name_hindi"))
-        record.name_english = clean_value(case_data.get("name_english"))
+        record.name_hindi = clean_value(
+            case_data.get("patient_name") or case_data.get("name_hindi")
+        )
+        record.name_english = clean_value(
+            case_data.get("patient_name") or case_data.get("name_english")
+        )
         record.age = clean_value(case_data.get("age"))
         record.sex = clean_value(case_data.get("sex"))
         record.location = clean_value(case_data.get("location"))
-        record.district = clean_value(case_data.get("district"))
         record.village = clean_value(case_data.get("village"))
         record.date = clean_value(case_data.get("date"))
         record.test_type = clean_value(case_data.get("test_type"))
@@ -179,9 +177,6 @@ def upsert_ocr_record(job: dict[str, Any]) -> None:
         record.treatment = clean_value(case_data.get("treatment"))
         record.temperature = clean_value(case_data.get("temperature"))
         record.hb_level = clean_value(case_data.get("hb_level"))
-        record.rbs = clean_value(case_data.get("rbs"))
-        record.bp = clean_value(case_data.get("bp"))
-        record.contacts = clean_value(case_data.get("contacts"))
         record.special_notes = special_notes
         record.ocr_status = ocr_status
 

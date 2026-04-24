@@ -34,6 +34,7 @@ npm run dev
 Start the backend in another terminal:
 
 ```bash
+.\backend\.venv\Scripts\Activate.ps1
 uv run python -m backend.main
 ```
 

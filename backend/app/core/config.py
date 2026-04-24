@@ -12,7 +12,7 @@ load_dotenv(PROJECT_ROOT / ".env", override=True)
 
 PORT = int(os.getenv("API_PORT", "8787"))
 OPENROUTER_BASE_URL = os.getenv("OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1")
-MODEL_NAME = os.getenv("OPENROUTER_MODEL", "openai/gpt-4o-mini").strip()
+MODEL_NAME = os.getenv("OPENROUTER_MODEL", "anthropic/claude-opus-4.6-fast").strip()
 
 DEFAULT_SQLITE_DB_PATH = PROJECT_ROOT / "backend" / "data" / "cif.db"
 DATABASE_URL = os.getenv("DATABASE_URL", f"sqlite:///{DEFAULT_SQLITE_DB_PATH.as_posix()}").strip()

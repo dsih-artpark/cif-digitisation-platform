@@ -3,12 +3,10 @@ import { createContext, useCallback, useContext, useMemo, useState } from "react
 const CifContext = createContext(null);
 
 const EMPTY_CASE_DATA = {
-  name_hindi: "N/A",
-  name_english: "N/A",
+  patient_name: "N/A",
   age: "N/A",
   sex: "N/A",
   location: "N/A",
-  district: "N/A",
   village: "N/A",
   date: "N/A",
   test_type: "N/A",
@@ -17,23 +15,13 @@ const EMPTY_CASE_DATA = {
   treatment: "N/A",
   temperature: "N/A",
   hb_level: "N/A",
-  rbs: "N/A",
-  bp: "N/A",
-  contacts: "N/A",
-  fever_onset_date: "N/A",
-  hh_total: "N/A",
-  hh_surveyed: "N/A",
-  individuals_tested: "N/A",
-  individuals_positive: "N/A",
 };
 
 const EMPTY_FIELD_STATUS = {
-  name_hindi: "Review Required",
-  name_english: "Review Required",
+  patient_name: "Review Required",
   age: "Review Required",
   sex: "Review Required",
   location: "Review Required",
-  district: "Review Required",
   village: "Review Required",
   date: "Review Required",
   test_type: "Review Required",
@@ -42,14 +30,6 @@ const EMPTY_FIELD_STATUS = {
   treatment: "Review Required",
   temperature: "Review Required",
   hb_level: "Review Required",
-  rbs: "Review Required",
-  bp: "Review Required",
-  contacts: "Review Required",
-  fever_onset_date: "Review Required",
-  hh_total: "Review Required",
-  hh_surveyed: "Review Required",
-  individuals_tested: "Review Required",
-  individuals_positive: "Review Required",
 };
 
 export function CifProvider({ children }) {
@@ -63,7 +43,7 @@ export function CifProvider({ children }) {
   const [processingError, setProcessingError] = useState("");
   const [extractionMetadata, setExtractionMetadata] = useState(null);
 
-  function splitLocationValue(location, district = "", village = "") {
+  function splitLocationValue(location, village = "") {
     const normalize = (value) => {
       const text = String(value || "").trim();
       const normalized = text.toLowerCase();
@@ -75,28 +55,23 @@ export function CifProvider({ children }) {
     const splitPattern = /\s*[-|\/,]\s*/;
 
     let resolvedLocation = normalize(location);
-    let resolvedDistrict = normalize(district);
     let resolvedVillage = normalize(village);
 
     if (resolvedLocation !== "N/A") {
       const parts = resolvedLocation.split(splitPattern).map((part) => part.trim()).filter(Boolean);
       if (parts.length >= 3) {
         resolvedLocation = parts[0];
-        if (resolvedDistrict === "N/A") resolvedDistrict = parts[1];
-        if (resolvedVillage === "N/A") resolvedVillage = parts.slice(2).join(" - ");
+        if (resolvedVillage === "N/A") resolvedVillage = parts.slice(1).join(" - ");
       } else if (parts.length === 2) {
         resolvedLocation = parts[0];
-        if (resolvedDistrict === "N/A") resolvedDistrict = parts[1];
+        if (resolvedVillage === "N/A") resolvedVillage = parts[1];
       }
-    } else if (resolvedDistrict !== "N/A") {
-      resolvedLocation = resolvedDistrict;
     } else if (resolvedVillage !== "N/A") {
       resolvedLocation = resolvedVillage;
     }
 
     return {
       location: resolvedLocation,
-      district: resolvedDistrict,
       village: resolvedVillage,
     };
   }
@@ -125,23 +100,20 @@ export function CifProvider({ children }) {
   const applyExtractionResult = useCallback((result, metadataOverrides = null) => {
     if (!result) return;
     const nextCaseData = {
-      name_hindi:
-        result?.caseData?.name_hindi ??
-        result?.caseData?.patientNameHindi ??
-        "N/A",
-      name_english:
-        result?.caseData?.name_english ??
+      patient_name:
+        result?.caseData?.patient_name ??
         result?.caseData?.patientName ??
+        result?.caseData?.name_english ??
+        result?.caseData?.name_hindi ??
         result?.caseData?.fullName ??
         "N/A",
       age: result?.caseData?.age ?? "N/A",
       sex: result?.caseData?.sex ?? "N/A",
       ...splitLocationValue(
-        result?.caseData?.location ??
-          result?.caseData?.locationVillage ??
-          result?.caseData?.village ??
+        result?.caseData?.location ?? 
+          result?.caseData?.locationVillage ?? 
+          result?.caseData?.village ?? 
           "N/A",
-        result?.caseData?.district ?? result?.caseData?.districtName ?? "N/A",
         result?.caseData?.village ?? result?.caseData?.villageName ?? "N/A"
       ),
       date: result?.caseData?.date ?? result?.caseData?.testDate ?? "N/A",
@@ -151,23 +123,13 @@ export function CifProvider({ children }) {
       treatment: result?.caseData?.treatment ?? "N/A",
       temperature: result?.caseData?.temperature ?? "N/A",
       hb_level: result?.caseData?.hb_level ?? result?.caseData?.hbLevel ?? "N/A",
-      rbs: result?.caseData?.rbs ?? "N/A",
-      bp: result?.caseData?.bp ?? "N/A",
-      contacts: result?.caseData?.contacts ?? "N/A",
-      fever_onset_date: result?.caseData?.fever_onset_date ?? "N/A",
-      hh_total: result?.caseData?.hh_total ?? "N/A",
-      hh_surveyed: result?.caseData?.hh_surveyed ?? "N/A",
-      individuals_tested: result?.caseData?.individuals_tested ?? "N/A",
-      individuals_positive: result?.caseData?.individuals_positive ?? "N/A",
     };
 
     const nextFieldStatus = {
-      name_hindi: result?.fieldStatus?.name_hindi || "Review Required",
-      name_english: result?.fieldStatus?.name_english || "Review Required",
+      patient_name: result?.fieldStatus?.patient_name || "Review Required",
       age: result?.fieldStatus?.age || "Review Required",
       sex: result?.fieldStatus?.sex || "Review Required",
       location: result?.fieldStatus?.location || "Review Required",
-      district: result?.fieldStatus?.district || "Review Required",
       village: result?.fieldStatus?.village || "Review Required",
       date: result?.fieldStatus?.date || "Review Required",
       test_type: result?.fieldStatus?.test_type || "Review Required",
@@ -176,14 +138,6 @@ export function CifProvider({ children }) {
       treatment: result?.fieldStatus?.treatment || "Review Required",
       temperature: result?.fieldStatus?.temperature || "Review Required",
       hb_level: result?.fieldStatus?.hb_level || "Review Required",
-      rbs: result?.fieldStatus?.rbs || "Review Required",
-      bp: result?.fieldStatus?.bp || "Review Required",
-      contacts: result?.fieldStatus?.contacts || "Review Required",
-      fever_onset_date: result?.fieldStatus?.fever_onset_date || "Review Required",
-      hh_total: result?.fieldStatus?.hh_total || "Review Required",
-      hh_surveyed: result?.fieldStatus?.hh_surveyed || "Review Required",
-      individuals_tested: result?.fieldStatus?.individuals_tested || "Review Required",
-      individuals_positive: result?.fieldStatus?.individuals_positive || "Review Required",
     };
 
     setCaseData(nextCaseData);

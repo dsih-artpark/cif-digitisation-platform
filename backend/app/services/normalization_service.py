@@ -234,11 +234,11 @@ def normalize_pathogen(value: Any) -> str:
 def normalize_location_triplet(raw_data: dict[str, Any]) -> dict[str, str]:
     triplet = split_location_triplet(
         first_available_value(raw_data, "location", "locationVillage", "address"),
-        first_available_value(
-            raw_data, "district", "districtName", "locationDistrict", "taluka", "block"
-        ),
+        None,
         first_available_value(raw_data, "village", "villageName"),
     )
+    if triplet["village"] == "N/A" and triplet["district"] != "N/A":
+        triplet["village"] = triplet["district"]
     return triplet
 
 
@@ -255,20 +255,18 @@ def normalize_integer_text(value: Any) -> str:
 
 def normalize_extraction(raw_data: dict[str, Any]) -> dict[str, Any]:
     fallback_age, fallback_sex = extract_age_and_sex_fallback(raw_data)
-    fallback_contacts = extract_contacts_fallback(raw_data)
     location_triplet = normalize_location_triplet(raw_data)
     raw_case_data = {
-        "name_hindi": first_available_value(
-            raw_data, "name_hindi", "nameHindi", "patientNameHindi"
-        ),
-        "name_english": first_available_value(
+        "patient_name": first_available_value(
             raw_data,
-            "name_english",
-            "nameEnglish",
-            "patientName",
             "patient_name",
+            "patientName",
             "name",
             "fullName",
+            "nameEnglish",
+            "name_hindi",
+            "nameHindi",
+            "patientNameHindi",
         ),
         "age": (
             first_available_value(raw_data, "age", "patientAge", "ageYears")
@@ -281,7 +279,6 @@ def normalize_extraction(raw_data: dict[str, Any]) -> dict[str, Any]:
             else fallback_sex
         ),
         "location": location_triplet["location"],
-        "district": location_triplet["district"],
         "village": location_triplet["village"],
         "date": first_available_value(raw_data, "date", "testDate", "test_date", "visitDate"),
         "test_type": first_available_value(raw_data, "test_type", "testType", "diagnosticTest"),
@@ -301,43 +298,6 @@ def normalize_extraction(raw_data: dict[str, Any]) -> dict[str, Any]:
         ),
         "temperature": first_available_value(raw_data, "temperature", "temp"),
         "hb_level": first_available_value(raw_data, "hb_level", "hbLevel", "hb", "haemoglobin"),
-        "rbs": first_available_value(raw_data, "rbs", "randomBloodSugar", "bloodSugar"),
-        "bp": first_available_value(raw_data, "bp", "bloodPressure"),
-        "contacts": (
-            first_available_value(
-                raw_data,
-                "contacts",
-                "contact",
-                "contactBS",
-                "contact_bs",
-                "contactCount",
-                "contact_count",
-            )
-            if first_available_value(
-                raw_data,
-                "contacts",
-                "contact",
-                "contactBS",
-                "contact_bs",
-                "contactCount",
-                "contact_count",
-            )
-            is not None
-            else fallback_contacts
-        ),
-        "fever_onset_date": first_available_value(
-            raw_data, "fever_onset_date", "feverOnsetDate", "fever_onset", "onsetDate"
-        ),
-        "hh_total": first_available_value(raw_data, "hh_total", "hhTotal", "householdsTotal"),
-        "hh_surveyed": first_available_value(
-            raw_data, "hh_surveyed", "hhSurveyed", "householdsSurveyed"
-        ),
-        "individuals_tested": first_available_value(
-            raw_data, "individuals_tested", "individualsTested"
-        ),
-        "individuals_positive": first_available_value(
-            raw_data, "individuals_positive", "individualsPositive"
-        ),
     }
     case_data = NormalizedCaseData.model_validate(raw_case_data).model_dump()
     if case_data.get("result") == "Negative":
